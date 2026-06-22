@@ -22,24 +22,129 @@
             gap: 12px;
             margin-bottom: 20px;
         }
-        .exports {
+        .toolbar {
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
             margin-bottom: 20px;
+            align-items: center;
         }
-        .import-box {
+        .push-box {
             margin-bottom: 20px;
             padding: 14px;
             border: 1px solid #ccc;
             border-radius: 8px;
-            background: #f7f7f7;
+            background: #fff7e6;
         }
-        .import-box form {
+        .public-url-box {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 14px;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 14px;
+            border: 1px solid #ccd5df;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+        .public-url-box h2 {
+            margin: 0 0 8px;
+        }
+        .public-url-row {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
+        }
+        .public-url-text {
+            flex: 1;
+            min-width: 240px;
+            padding: 10px;
+            border-radius: 6px;
+            background: #eef2f7;
+            color: #1f2933;
+            font-weight: bold;
+            word-break: break-all;
+        }
+        .qr-image {
+            width: 168px;
+            height: 168px;
+            border: 8px solid white;
+            box-shadow: 0 0 0 1px #ccd5df;
+            background: white;
+        }
+        .copy-message {
+            margin: 8px 0 0;
+            color: #1b5e20;
+            font-weight: bold;
+        }
+        @media (max-width: 680px) {
+            .public-url-box {
+                grid-template-columns: 1fr;
+            }
+        }
+        .push-box input,
+        .push-box textarea {
+            width: 100%;
+            max-width: 520px;
+            margin: 6px 0 10px;
+            padding: 8px;
+            font: inherit;
+        }
+        .push-box textarea {
+            min-height: 80px;
+        }
+        .push-submit {
+            width: 100%;
+            min-height: 72px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 10px;
+            background: #c62828;
+            color: white;
+            font-size: 26px;
+            font-weight: bold;
+        }
+        .sort-box {
+            margin-bottom: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #eef2f7;
+        }
+        .sort-box a {
+            display: inline-block;
+            margin: 4px 6px 4px 0;
+            padding: 8px 10px;
+            border-radius: 6px;
+            background: white;
+            color: #1f4f82;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        .response-rate-box {
+            margin-bottom: 20px;
+            padding: 14px;
+            border: 1px solid #ccd5df;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+        .response-rate-main {
+            margin: 0 0 10px;
+            font-size: 22px;
+            font-weight: bold;
+        }
+        .occupation-rates {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .occupation-rate {
+            display: inline-block;
+            padding: 8px 10px;
+            border-radius: 6px;
+            background: #eef2f7;
+            font-weight: bold;
         }
         .notice {
             margin-bottom: 16px;
@@ -57,14 +162,20 @@
             color: #b71c1c;
             font-weight: bold;
         }
-        .export-link {
+        .action-button {
             display: inline-block;
             padding: 10px 14px;
+            border: none;
             border-radius: 6px;
             background: #1f4f82;
             color: white;
+            font: inherit;
             font-weight: bold;
             text-decoration: none;
+            cursor: pointer;
+        }
+        .hidden-file-input {
+            display: none;
         }
         .card {
             padding: 16px;
@@ -109,6 +220,14 @@
         <div class="error">CSVの形式を確認してください。</div>
     {% endif %}
 
+    {% if request.query_params.get("push_success") is not none %}
+        <div class="notice">
+            Push通知送信結果：
+            成功 {{ request.query_params.get("push_success") }} 件、
+            失敗 {{ request.query_params.get("push_failed") }} 件
+        </div>
+    {% endif %}
+
     <div class="summary">
         <div class="card gray">登録 {{ counts["total"] }}</div>
         <div class="card green">元気 {{ counts["fine"] }}</div>
@@ -117,30 +236,90 @@
         <div class="card gray">未応答 {{ counts["none"] }}</div>
     </div>
 
-    <div class="exports">
-        <a class="export-link" href="/admin/export/members.csv">登録者一覧CSV</a>
-        <a class="export-link" href="/admin/export/responses.csv">応答履歴CSV</a>
+    <div class="toolbar">
+        <a class="action-button" href="/admin/export/members.csv">登録者一覧CSV出力</a>
+        <a class="action-button" href="/admin/export/responses.csv">応答履歴CSV出力</a>
+        <form id="csv-import-form" method="post" action="/admin/import/members.csv" enctype="multipart/form-data">
+            <input id="csv-file-input" class="hidden-file-input" type="file" name="csv_file" accept=".csv,text/csv" required>
+            <button class="action-button" type="button" id="csv-import-button">CSVを読み込む</button>
+        </form>
+        <a class="action-button" href="/admin/settings">設定</a>
     </div>
 
-    <div class="import-box">
-        <form method="post" action="/admin/import/members.csv" enctype="multipart/form-data">
+    <div class="public-url-box">
+        <div>
+            <h2>公開URL</h2>
+            {% if public_url %}
+                <div class="public-url-row">
+                    <div id="public-url-text" class="public-url-text">{{ public_url }}</div>
+                    <button id="copy-public-url-button" class="action-button" type="button">コピー</button>
+                </div>
+                <p id="copy-public-url-message" class="copy-message"></p>
+            {% else %}
+                <div class="public-url-text">未取得</div>
+            {% endif %}
+        </div>
+        {% if public_url %}
+            <img
+                class="qr-image"
+                src="/admin/public-url-qr.png"
+                alt="公開URLのQRコード"
+            >
+        {% endif %}
+    </div>
+
+    <div class="push-box">
+        <h2>一斉Push通知</h2>
+        <form method="post" action="/admin/push/send">
             <label>
-                登録者CSV読み込み
-                <input type="file" name="csv_file" accept=".csv,text/csv" required>
+                タイトル<br>
+                <input type="text" name="title" value="緊急連絡" required>
             </label>
-            <button type="submit">CSVを読み込む</button>
+            <label>
+                本文<br>
+                <textarea name="body" required>安否確認をお願いします。</textarea>
+            </label>
+            <button class="push-submit" type="submit">一斉通知送信</button>
         </form>
-        <p>CSV列：name, group_name, staff_code（staff_code は任意）</p>
+    </div>
+
+    <div class="response-rate-box">
+        <p class="response-rate-main">
+            返信率 {{ response_summary["percent"] }}%
+            ({{ response_summary["responded"] }}/{{ response_summary["total"] }})
+        </p>
+        <div>
+            職種別
+            <div class="occupation-rates">
+                {% for item in occupation_rates %}
+                    <span class="occupation-rate">
+                        {{ item["name"] }}
+                        {{ item["responded"] }}/{{ item["total"] }}
+                        {{ item["percent"] }}%
+                    </span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="sort-box">
+        並び替え：
+        <a href="/admin?sort=name&direction=asc">名前</a>
+        <a href="/admin?sort=date&direction=desc">日付</a>
+        <a href="/admin?sort=occupation&direction=asc">職種</a>
+        <a href="/admin?sort=status&direction=asc">色別</a>
+        <a href="/admin?sort=registered_at&direction=desc">登録時刻</a>
+        <a href="/admin?sort=latest_response_at&direction=desc">最終時刻</a>
     </div>
 
     <table>
         <tr>
-            <th>名前</th>
-            <th>グループ</th>
-            <th>状態</th>
+            <th><a href="/admin?sort=name&direction=asc">名前</a></th>
+            <th><a href="/admin?sort=occupation&direction=asc">職種</a></th>
+            <th><a href="/admin?sort=status&direction=asc">状態</a></th>
             <th>コメント</th>
-            <th>最終応答日時</th>
-            <th>登録日時</th>
+            <th><a href="/admin?sort=latest_response_at&direction=desc">最終応答日時</a></th>
+            <th><a href="/admin?sort=registered_at&direction=desc">登録日時</a></th>
             <th>識別コード</th>
             <th>削除</th>
         </tr>
@@ -156,6 +335,8 @@
                     <span class="status-trouble">困ってます</span>
                 {% elif m["status"] == "help" %}
                     <span class="status-help">助けて</span>
+                {% elif m["status"] == "note" %}
+                    メモあり
                 {% else %}
                     未応答
                 {% endif %}
@@ -177,6 +358,42 @@
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", function () {
                 navigator.serviceWorker.register("/service-worker.js");
+            });
+        }
+
+        const csvImportButton = document.getElementById("csv-import-button");
+        const csvFileInput = document.getElementById("csv-file-input");
+        const csvImportForm = document.getElementById("csv-import-form");
+
+        csvImportButton.addEventListener("click", function () {
+            csvFileInput.click();
+        });
+
+        csvFileInput.addEventListener("change", function () {
+            if (csvFileInput.files.length > 0) {
+                csvImportForm.submit();
+            }
+        });
+
+        const copyPublicUrlButton = document.getElementById("copy-public-url-button");
+        const publicUrlText = document.getElementById("public-url-text");
+        const copyPublicUrlMessage = document.getElementById("copy-public-url-message");
+
+        if (copyPublicUrlButton && publicUrlText) {
+            copyPublicUrlButton.addEventListener("click", async function () {
+                const url = publicUrlText.textContent.trim();
+                try {
+                    await navigator.clipboard.writeText(url);
+                    copyPublicUrlMessage.textContent = "コピーしました。";
+                } catch (error) {
+                    const textarea = document.createElement("textarea");
+                    textarea.value = url;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(textarea);
+                    copyPublicUrlMessage.textContent = "コピーしました。";
+                }
             });
         }
     </script>

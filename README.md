@@ -1,296 +1,332 @@
-# emergency-contact-system
-Emergency Alert System in Hospital
-
 # Emergency Contact System
 
-Emergency Contact System は、利用者の状態報告と管理者による状況集約を目的とした軽量なWebアプリケーションです。
-シンプルな入力とリアルタイムな状況把握を重視し、Python と FastAPI を用いて構築されています。
-Python、FastAPI、SQLite を利用して構築されており、単一PC上で動作します。
-難しいコマンド入力が苦手な方がでも、start.commandをダブルクリックすることで、サーバ起動、ブラウザ立ち上げを自動実行できます。
-主に企業内での運用を想定していますが、家庭での安否確認などにもご利用いただけます。
+Emergency Contact System は、利用者の安否・状態報告と、管理者による状況集約を目的とした軽量なWebアプリケーションです。
 
-（運用は自己責任でお願い致します）
+Python / FastAPI / SQLite / Jinja2 で構成され、macOS上で `start.command` をダブルクリックして起動できます。PWA、Web Push通知、CSV入出力、管理画面での設定変更に対応しています。
+
+運用は自己責任でお願いします。
 
 ---
 
-**********************************************
-
-## 初期設定
-
-初回起動時は、管理者アカウントおよび登録パスワードを設定してください。
-
-開発時のサンプル設定：
-
-ADMIN_USER = "admin"
-
-ADMIN_PASSWORD = "OnlyYourPassword2026!"
-
-REGISTRATION_PASSWORD = "ChangeMe"
-
-### 注意
-
-- 本番運用前に必ず変更してください。
-- 管理者パスワードを GitHub に公開しないでください。
-- 複数環境で運用する場合は `.env` ファイル等で管理することを推奨します。
-- 管理画面(`/admin`)は Basic 認証で保護されます。
-
-**********************************************
-
-
-
-# システム要件
-
-動作確認環境
+## システム要件
 
 - macOS
 - Python 3.11 以上
 - FastAPI
 - Uvicorn
+- Cloudflare Tunnel を使う場合は `cloudflared`
 
 ---
 
-# インストール
+## インストール
 
-リポジトリを取得します。
-
+```bash
 git clone https://github.com/xxxxx/emergency-contact-system.git
 cd emergency-contact-system
-
-仮想環境を作成します。
-
 python3 -m venv venv
 source venv/bin/activate
-
-必要なライブラリをインストールします。
-
-pip install fastapi uvicorn jinja2 python-multipart
-
-分かりにくい方は、これらを全てChat GPTなどに投げればなんとかなります。
+pip install -r requirements.txt
+```
 
 ---
 
+## 初期設定
 
-# 起動方法
+初回起動時は、以下の初期値で管理画面に入れます。
 
-通常起動
+```text
+ADMIN_USER=admin
+ADMIN_PASSWORD=OnlyYourPassword2026!
+REGISTRATION_PASSWORD=ChangeMe
+```
 
+本番運用前に、管理画面の `/admin/settings` から必ず変更してください。
+
+設定画面で変更できる項目:
+
+- 管理者名
+- 管理者パスワード
+- 初回登録のあいことば
+- 職種リスト
+- VAPID設定
+- 公開URL設定
+
+保存内容は `.env` に反映されます。`.env` は `main.py` や `start.command` と同じプロジェクト直下に置かれます。
+
+---
+
+## 起動方法
+
+### 通常起動
+
+```bash
 source venv/bin/activate
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
 
 ブラウザで以下へアクセスします。
 
+```text
 http://127.0.0.1:8000
+```
 
----
+### macOS簡単起動
 
-# 簡単起動
+`start.command` をダブルクリックすると、以下を自動実行します。
 
-macOSでは付属の
-
-start.command
-
-をダブルクリックすることで、
-
+- `.env` の読み込み
+- 既存の8000番ポート利用プロセスの停止
 - FastAPIサーバ起動
-- ブラウザ起動
+- ローカル画面をブラウザで表示
+- Cloudflare Tunnel 起動
+- Cloudflare一時URLを `current_url.txt` に保存
 
-を自動実行できます。
+`start.command` は実行権限が必要です。もし起動できない場合は以下を実行してください。
 
-すでに8000番ポートが使われている場合は、既存プロセスを停止してから起動する仕様です。
-
-開発中や個人利用時はこちらを推奨します。
-
----
-
-# HTTPS / PWA 運用メモ
-
-現在の `start.command` 起動では、ローカルHTTPで動作します。
-
-http://127.0.0.1:8000
-
-PWAとしてホーム画面に追加する準備として、`static/manifest.json`、`static/service-worker.js`、`static/icons/` を追加しています。
-
-PWA / Push通知を本番運用するにはHTTPSが必要です。本番環境では、Nginx + Let's Encrypt、または Cloudflare Tunnel 等を利用してHTTPS化してください。
-
-ローカルLAN内の試験では、HTTPでも基本的な画面表示や状態送信の動作確認は可能です。ただし、Push通知など一部のブラウザ機能はHTTPSでないと利用できません。
-
-Push通知そのものは今回の範囲には含めず、次段階で実装予定です。
+```bash
+chmod +x start.command
+```
 
 ---
 
+## 初回利用の流れ
 
-# 主な機能
+このシステムはPWAとしてホーム画面に追加して利用する前提です。
 
-## 利用者登録
+通常ブラウザでURLを開いた場合、登録フォームは表示されず、「ホーム画面に追加」案内だけが表示されます。
 
-利用者は以下を入力して登録します。
+ホーム画面からPWAとして起動した場合のみ、初回登録フォームが表示されます。
 
-* 名前
-* グループ
-* 登録パスワード
+登録項目:
 
-システムは識別コードを自動生成します。
+- 名前
+- 職種
+- あいことば
 
----
-
-## 状態報告
-
-利用者は現在の状態をボタンで送信できます。
-
-標準設定
-
-* OK
-* Need Assistance
-* Emergency
-
-表示文言は用途に応じて変更可能です。
+登録後は識別コードが自動生成され、同じ端末では次回以降、自分の利用者画面に戻ります。
 
 ---
 
-## コメント送信
+## 利用者画面
 
-利用者は任意でコメントを送信できます。
+利用者は以下の状態を送信できます。
 
-例
+- 元気です
+- 困っています
+- 助けてください
 
-* 現在地
-* 状況説明
-* 補足情報
+メモは状態に関係なく送信できます。メモだけ送信した場合は、直前の状態を引き継ぎます。
+
+利用者自身による登録解除も可能です。
 
 ---
 
 ## 管理画面
 
+管理画面はBasic認証で保護されています。
+
+```text
 http://127.0.0.1:8000/admin
+```
 
-管理者は登録者の状態を一覧表示できます。
+管理画面で確認・操作できる内容:
 
-管理者認証が必要です。初回起動時に求められます。
+- 登録者一覧
+- 現在の状態
+- コメント
+- 最終応答日時
+- 登録日時
+- 返信率
+- 職種別返信率
+- 登録者の無効化
+- CSV出力
+- CSV読み込み
+- 一斉Push通知送信
+- 公開URL表示
+- 公開URLコピー
+- 公開URL QRコード表示
 
-上記の注意点を読み、必ずmain.pyの中にある該当項目を編集して下さい。
+並び替え:
 
-管理画面から以下を出力できます。
-
-- 登録者一覧CSV
-- 応答履歴CSV
-
-UTF-8(BOM付き)形式のため、Microsoft Excelで直接開くことができます。
-
-
-表示項目
-
-* 名前
-* グループ
-* 現在の状態
-* コメント
-* 登録日時
-* 最終応答日時
-* 識別コード
-
----
-
-## 登録管理
-
-利用者自身による登録解除が可能です。
-
-管理者は登録者を無効化できます。
-
-データは削除せず、active フラグによって管理します。
+- 名前
+- 日付
+- 職種
+- 色別
+- 登録時刻
+- 最終時刻
 
 ---
 
-## CSV出力
+## CSV
 
-管理画面からCSVを出力できます。
+### 登録者一覧CSV出力
 
-### 登録者一覧CSV
+出力項目:
 
-出力内容
+- id
+- name
+- group_name（職種）
+- code
+- active
+- registered_at
+- latest_status
+- latest_comment
+- latest_response_at
 
-* id
-* name
-* group_name
-* code
-* active
-* registered_at
-* latest_status
-* latest_comment
-* latest_response_at
+### 応答履歴CSV出力
 
-### 応答履歴CSV
+出力項目:
 
-出力内容
+- response_id
+- member_id
+- name
+- group_name（職種）
+- status
+- comment
+- response_at
 
-* response_id
-* member_id
-* name
-* group_name
-* status
-* comment
-* response_at
+### CSV読み込み
 
-UTF-8 with BOM形式で出力し、Excelで利用できます。
+管理画面から登録者CSVを読み込めます。
 
----
+読み込み項目:
 
-# 技術構成
+- name
+- group_name
+- staff_code（任意）
 
-* Python
-* FastAPI
-* SQLite
-* Jinja2
-* HTML/CSS
+重複は `staff_code`、または `name + group_name` でスキップします。CSVから読み込まれた職種が職種リストに存在しない場合も、エラーにはせずそのまま登録します。
 
----
-
-# 設計方針
-
-本システムは以下を重視しています。
-
-* シンプルな操作
-* モバイル対応
-* 軽量な構成
-* 導入容易性
-* 管理容易性
-
-利用者が入力する情報を最小限にし、管理者が状況を把握しやすい設計を目指しています。
+CSVはUTF-8 BOM付きで出力されるため、Microsoft Excelで開きやすくなっています。
 
 ---
 
-# 現在の実装状況
+## PWA / HTTPS
 
-Version 0.1
+PWAとWeb Push通知を安定運用するにはHTTPSが必要です。
 
-実装済み
+ローカルHTTPでも画面表示や基本操作は確認できますが、Push通知など一部ブラウザ機能は動作しない場合があります。
 
-* 利用者登録
-* 識別コード自動生成
-* 状態報告
-* コメント送信
-* 管理画面
-* Basic認証
-* 登録解除
-* 登録者無効化
-* CSV出力
-* スマートフォン対応UI
-* PWA準備
+PWA関連ファイル:
 
-未実装
-
-* Push通知
+- `static/manifest.json`
+- `static/service-worker.js`
+- `static/icons/`
 
 ---
 
-# 開発メモ
+## Web Push通知
 
-本システムは特定用途に依存しない汎用的な状態報告システムとして設計されています。
+管理画面から、通知登録済みの利用者へ一斉Push通知を送信できます。
 
-運用環境に応じて、
+利用者は自分の画面で「通知を有効にする」を押し、ブラウザの通知許可を行う必要があります。自動で通知許可は要求しません。
 
-* 状態ボタン
-* 登録項目
-* 集計項目
+### VAPID鍵生成
 
-を変更することで様々な用途へ適用できます。
+```bash
+python generate_vapid_keys.py
+```
 
-機能追加を行う際も、シンプルさと軽量性を維持することを優先してください。
+出力例:
+
+```text
+VAPID_PUBLIC_KEY=...
+VAPID_PRIVATE_KEY_FILE=vapid_private_key.pem
+```
+
+`.env` 例:
+
+```text
+VAPID_PUBLIC_KEY=生成された公開鍵
+VAPID_PRIVATE_KEY_FILE=vapid_private_key.pem
+VAPID_CLAIMS_SUB=mailto:admin@example.com
+```
+
+Apple Web PushではVAPID署名に失敗すると `403 Forbidden / BadJwtToken` が返ることがあります。秘密鍵は `generate_vapid_keys.py` が生成するPEMファイルを使い、`VAPID_CLAIMS_SUB` は必ず `mailto:` 形式にしてください。
+
+VAPID設定は `/admin/settings` からも編集できます。
+
+---
+
+## 公開URL
+
+このシステムはCloudflare Tunnelで外部公開できます。
+
+### 可変URLモード
+
+無料デモや短期試験では以下を利用できます。
+
+```bash
+cloudflared tunnel --url http://localhost:8000
+```
+
+`trycloudflare.com` の一時URLが発行されます。
+
+注意:
+
+- URLは起動ごとに変わります
+- PWA登録はURL変更ごとにやり直しが必要です
+- Push通知登録もURL変更ごとにやり直しが必要です
+- 継続運用には向きません
+
+`start.command` で起動した場合、Cloudflareの一時URLは `current_url.txt` に保存されます。
+
+### 固定URLモード
+
+継続運用では、独自ドメインとCloudflare Named Tunnel等の利用を推奨します。
+
+例:
+
+```text
+https://example.com
+```
+
+固定URLでは、PWA登録やPush通知登録を維持しやすくなります。
+
+公開URLの運用モードは `/admin/settings` から変更できます。
+
+---
+
+## 技術構成
+
+- Python
+- FastAPI
+- SQLite
+- Jinja2
+- HTML/CSS/JavaScript
+- PWA
+- Web Push
+
+---
+
+## 現在の実装状況
+
+実装済み:
+
+- 利用者登録
+- 識別コード自動生成
+- 職種リスト編集
+- あいことば編集
+- 状態報告
+- メモ送信
+- 管理画面
+- Basic認証
+- 登録解除
+- 登録者無効化
+- CSV出力
+- CSV読み込み
+- 返信率表示
+- PWA
+- Service Worker
+- Web Push通知
+- 公開URL設定
+- Cloudflare一時URL取得
+
+---
+
+## 注意点
+
+- 管理者パスワードやVAPID秘密鍵をGitHubに公開しないでください。
+- `.env`、`vapid_private_key.pem`、`emergency.db` はGit管理しないでください。
+- 可変URLモードでは、URL変更のたびにPWA登録とPush通知登録のやり直しが必要です。
+- 管理画面のQRコードはアプリ内部で生成します。

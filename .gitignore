@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 emergency.db
 .DS_Store
+.env
+vapid_private_key.pem
+current_url.txt
+cloudflared.log

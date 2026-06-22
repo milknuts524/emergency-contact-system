@@ -152,6 +152,8 @@
             min-height: 68px;
             margin-bottom: 12px;
             padding: 14px 12px;
+            background: #1f4f82;
+            color: #ffffff;
             font-size: 22px;
             line-height: 1.25;
             box-shadow: 0 4px 0 rgba(0, 0, 0, 0.16);
@@ -161,6 +163,37 @@
             margin-top: 34px;
             padding-top: 18px;
             border-top: 1px solid #cbd2d9;
+        }
+
+        .push-area {
+            margin-top: 28px;
+            padding: 18px;
+            border: 2px solid #d7dde5;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        .push-title {
+            margin: 0 0 8px;
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .push-message {
+            margin: 8px 0 0;
+            color: #52606d;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .push-button {
+            min-height: 58px;
+            margin-top: 10px;
+            padding: 12px;
+            background: #1f4f82;
+            color: #ffffff;
+            font-size: 20px;
+            box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
         }
 
         .remove-button {
@@ -207,6 +240,8 @@
                         困っています
                     {% elif latest["status"] == "help" %}
                         助けてください
+                    {% elif latest["status"] == "note" %}
+                        メモあり
                     {% else %}
                         未応答
                     {% endif %}
@@ -237,14 +272,18 @@
             <form method="post" action="/user/{{ member['code'] }}/respond">
                 <textarea name="comment" placeholder="例：けがをしました。水が必要です。避難所にいます。"></textarea>
 
-                <button class="memo-button yellow" type="submit" name="status" value="trouble">
-                    困っています＋メモ送信
-                </button>
-
-                <button class="memo-button red" type="submit" name="status" value="help">
-                    助けてください＋メモ送信
+                <button class="memo-button" type="submit">
+                    メモ送信
                 </button>
             </form>
+        </section>
+
+        <section class="push-area" aria-label="通知設定">
+            <p class="push-title">通知設定</p>
+            <button id="push-subscribe-button" class="push-button" type="button">
+                通知を有効にする
+            </button>
+            <p id="push-subscribe-message" class="push-message"></p>
         </section>
 
         <section class="remove-area" aria-label="登録解除">
@@ -256,11 +295,71 @@
         </section>
     </main>
     <script>
+        const vapidPublicKey = {{ vapid_public_key | tojson }};
+        localStorage.setItem("emergency_member_code", {{ member["code"] | tojson }});
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = "=".repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding)
+                .replace(/-/g, "+")
+                .replace(/_/g, "/");
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+
+            for (let i = 0; i < rawData.length; i += 1) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+
+            return outputArray;
+        }
+
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", function () {
                 navigator.serviceWorker.register("/service-worker.js");
             });
         }
+
+        const pushButton = document.getElementById("push-subscribe-button");
+        const pushMessage = document.getElementById("push-subscribe-message");
+
+        pushButton.addEventListener("click", async function () {
+            if (!vapidPublicKey) {
+                pushMessage.textContent = "通知用の公開鍵が未設定です。管理者に確認してください。";
+                return;
+            }
+
+            if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+                pushMessage.textContent = "この端末またはブラウザはPush通知に対応していません。";
+                return;
+            }
+
+            const permission = await Notification.requestPermission();
+            if (permission !== "granted") {
+                pushMessage.textContent = "通知が許可されませんでした。";
+                return;
+            }
+
+            const registration = await navigator.serviceWorker.ready;
+            const subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+            });
+
+            const response = await fetch("/user/{{ member['code'] }}/push-subscribe", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(subscription)
+            });
+
+            if (response.ok) {
+                pushMessage.textContent = "通知登録済み";
+                pushButton.disabled = true;
+            } else {
+                pushMessage.textContent = "通知登録に失敗しました。";
+            }
+        });
     </script>
 </body>
 </html>

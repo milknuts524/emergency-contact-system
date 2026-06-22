@@ -11,46 +11,331 @@
     <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/static/icons/icon.svg">
     <title>緊急連絡システム</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f4f6f8;
+            color: #1f2933;
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", sans-serif;
+            font-size: 18px;
+            line-height: 1.5;
+        }
+
+        main {
+            width: 100%;
+            max-width: 560px;
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: max(20px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 30px;
+            line-height: 1.25;
+        }
+
+        h2 {
+            margin: 0 0 22px;
+            font-size: 24px;
+            line-height: 1.3;
+        }
+
+        .error {
+            margin: 0 0 18px;
+            padding: 14px;
+            border-radius: 10px;
+            background: #ffebee;
+            color: #b71c1c;
+            font-weight: 800;
+        }
+
+        .form-card {
+            padding: 18px;
+            border: 2px solid #d7dde5;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 18px;
+            font-size: 20px;
+            font-weight: 800;
+        }
+
+        input,
+        select {
+            width: 100%;
+            min-height: 56px;
+            margin-top: 8px;
+            padding: 12px;
+            border: 2px solid #9aa5b1;
+            border-radius: 10px;
+            background: #ffffff;
+            color: #1f2933;
+            font: inherit;
+            font-size: 20px;
+        }
+
+        input:focus,
+        select:focus {
+            outline: 4px solid #b8d7ff;
+            border-color: #2f80ed;
+        }
+
+        button {
+            width: 100%;
+            min-height: 64px;
+            padding: 14px;
+            border: 0;
+            border-radius: 12px;
+            background: #c91f1f;
+            color: #ffffff;
+            font-family: inherit;
+            font-size: 24px;
+            font-weight: 800;
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.18);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button:active {
+            transform: translateY(2px);
+            box-shadow: none;
+        }
+
+        .admin-link {
+            margin-top: 22px;
+            font-size: 16px;
+        }
+
+        .admin-link a {
+            color: #1f4f82;
+            font-weight: 800;
+        }
+
+        .install-card {
+            margin-top: 20px;
+            padding: 16px;
+            border: 2px solid #d7dde5;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        .install-card h2 {
+            margin: 0 0 10px;
+            font-size: 22px;
+        }
+
+        .install-card h3 {
+            margin: 16px 0 6px;
+            font-size: 18px;
+        }
+
+        .install-card p,
+        .install-card ol {
+            margin: 0;
+        }
+
+        .install-card ol {
+            padding-left: 22px;
+        }
+
+        .install-card li {
+            margin-bottom: 6px;
+        }
+
+        .install-button {
+            display: none;
+            margin-top: 14px;
+            background: #1f4f82;
+            font-size: 20px;
+        }
+
+        .pwa-only {
+            display: none;
+        }
+
+        .browser-only {
+            display: block;
+        }
+
+        html.is-pwa .pwa-only {
+            display: block;
+        }
+
+        html.is-pwa .browser-only {
+            display: none;
+        }
+
+        .notice-card {
+            margin-top: 20px;
+            padding: 16px;
+            border: 2px solid #d7dde5;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        .notice-card h2 {
+            margin: 0 0 10px;
+            font-size: 22px;
+        }
+
+        .notice-card p {
+            margin: 8px 0 0;
+        }
+
+        .notice-button {
+            margin-top: 14px;
+            background: #1f4f82;
+            font-size: 20px;
+        }
+    </style>
+    <script>
+        const isStandaloneMode =
+            window.matchMedia("(display-mode: standalone)").matches ||
+            window.navigator.standalone === true;
+
+        if (isStandaloneMode) {
+            document.documentElement.classList.add("is-pwa");
+        }
+    </script>
 </head>
 <body>
-    <h1>緊急連絡システム</h1>
-    <h2>初回登録</h2>
+    <main>
+        <h1>緊急連絡システム</h1>
 
-    {% if request.query_params.get("error") == "wrong_password" %}
-    <p style="color: red;">初回登録パスワードが違います。</p>
-    {% endif %}
+        <section class="install-card browser-only" aria-label="ホーム画面に追加">
+            <h2>ホーム画面に追加</h2>
+            <p>このシステムはホーム画面に追加して利用します。</p>
 
-    <form method="post" action="/register">
-        <p>
-            名前<br>
-            <input type="text" name="name" required>
-        </p>
+            <h3>iPhone</h3>
+            <ol>
+                <li>Safariでこのページを開く</li>
+                <li>共有ボタンを押す</li>
+                <li>ホーム画面に追加を選ぶ</li>
+            </ol>
 
-        <p>
-            グループ<br>
-            <input type="text" name="group_name" value="家族">
-        </p>
+            <h3>Android</h3>
+            <ol>
+                <li>Chromeでこのページを開く</li>
+                <li>メニューを押す</li>
+                <li>アプリをインストール、またはホーム画面に追加を選ぶ</li>
+            </ol>
 
-        <p>
-            識別コード（自動生成）<br>
-            識別コードは自動で作成されます
-        </p>
+            <p>iPhoneでは、このページから直接ホーム画面追加を実行できないため、上の手順で追加してください。</p>
+            <button id="install-app-button" class="install-button" type="button">インストール</button>
+        </section>
 
-        <p>
-            初回登録パスワード<br>
-            <input type="password" name="registration_password" required>
-        </p>
+        <section class="pwa-only">
+            <h2>初回登録</h2>
 
-        <button type="submit">登録する</button>
-    </form>
+            {% if request.query_params.get("error") == "wrong_password" %}
+                <p class="error">あいことばが違います。</p>
+            {% endif %}
 
-    <p>管理画面：<a href="/admin">/admin</a></p>
+            <form class="form-card" method="post" action="/register" autocomplete="off">
+                <label>
+                    名前
+                    <input type="text" name="name" autocomplete="name" required>
+                </label>
+
+                <label>
+                    職種
+                    <select name="group_name" required>
+                        <option value="">選択してください</option>
+                        {% for occupation in occupations %}
+                            <option value="{{ occupation }}">{{ occupation }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+
+                <label>
+                    あいことば
+                    <input type="text" name="facility_key" autocomplete="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-1p-ignore="true" required>
+                </label>
+
+                <button type="submit">登録する</button>
+            </form>
+
+            <section class="notice-card" aria-label="通知許可">
+                <h2>通知設定</h2>
+                <p>通知を使う場合は、下のボタンから許可してください。通知の登録は利用者登録後の画面で行えます。</p>
+                <button id="notification-permission-button" class="notice-button" type="button">通知を許可</button>
+                <p id="notification-permission-message"></p>
+            </section>
+        </section>
+
+        <p class="admin-link">管理画面：<a href="/admin">/admin</a></p>
+    </main>
+
     <script>
+        let deferredInstallPrompt = null;
+        const installButton = document.getElementById("install-app-button");
+        const savedMemberCode = localStorage.getItem("emergency_member_code");
+
+        if (isStandaloneMode && savedMemberCode) {
+            window.location.replace("/user/" + encodeURIComponent(savedMemberCode));
+        }
+
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", function () {
                 navigator.serviceWorker.register("/service-worker.js");
             });
         }
+
+        window.addEventListener("beforeinstallprompt", function (event) {
+            event.preventDefault();
+            deferredInstallPrompt = event;
+            installButton.style.display = "block";
+        });
+
+        installButton.addEventListener("click", async function () {
+            if (!deferredInstallPrompt) {
+                return;
+            }
+
+            deferredInstallPrompt.prompt();
+            await deferredInstallPrompt.userChoice;
+            deferredInstallPrompt = null;
+            installButton.style.display = "none";
+        });
+
+        window.addEventListener("appinstalled", function () {
+            deferredInstallPrompt = null;
+            installButton.style.display = "none";
+        });
+
+        const notificationButton = document.getElementById("notification-permission-button");
+        const notificationMessage = document.getElementById("notification-permission-message");
+
+        notificationButton.addEventListener("click", async function () {
+            if (!("Notification" in window)) {
+                notificationMessage.textContent = "この端末またはブラウザは通知に対応していません。";
+                return;
+            }
+
+            const permission = await Notification.requestPermission();
+            if (permission === "granted") {
+                notificationMessage.textContent = "通知が許可されました。登録後に通知を有効にできます。";
+            } else {
+                notificationMessage.textContent = "通知が許可されませんでした。";
+            }
+        });
+
+        document.addEventListener("pointerdown", function (event) {
+            const activeElement = document.activeElement;
+            const isFormControl = event.target.closest("input, select, textarea, button, a");
+
+            if (activeElement && !isFormControl && typeof activeElement.blur === "function") {
+                activeElement.blur();
+            }
+        });
     </script>
 </body>
 </html>
