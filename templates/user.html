@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>緊急安否確認システム</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f4f6f8;
+            color: #1f2933;
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", sans-serif;
+            font-size: 18px;
+            line-height: 1.5;
+        }
+
+        main {
+            width: 100%;
+            max-width: 560px;
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: max(18px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+        }
+
+        h1 {
+            margin: 0 0 10px;
+            font-size: 28px;
+            line-height: 1.25;
+        }
+
+        .person {
+            margin: 0 0 18px;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .status-box {
+            margin-bottom: 22px;
+            padding: 18px;
+            background: #ffffff;
+            border: 2px solid #d7dde5;
+            border-radius: 14px;
+        }
+
+        .status-label {
+            margin: 0 0 8px;
+            color: #52606d;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .status-current {
+            margin: 0;
+            font-size: 30px;
+            font-weight: 800;
+            line-height: 1.25;
+        }
+
+        .status-time {
+            margin: 8px 0 0;
+            color: #52606d;
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .button-form {
+            margin: 0 0 14px;
+        }
+
+        button {
+            width: 100%;
+            border: 0;
+            border-radius: 14px;
+            font-family: inherit;
+            font-weight: 800;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .main-button {
+            min-height: 92px;
+            padding: 18px 16px;
+            font-size: 28px;
+            line-height: 1.2;
+            box-shadow: 0 5px 0 rgba(0, 0, 0, 0.18);
+        }
+
+        .main-button:active,
+        .memo-button:active,
+        .remove-button:active {
+            transform: translateY(2px);
+            box-shadow: none;
+        }
+
+        .green {
+            background: #137a3a;
+            color: #ffffff;
+        }
+
+        .yellow {
+            background: #ffd447;
+            color: #1f2933;
+        }
+
+        .red {
+            background: #c91f1f;
+            color: #ffffff;
+        }
+
+        .memo-area {
+            margin-top: 26px;
+            padding-top: 22px;
+            border-top: 2px solid #d7dde5;
+        }
+
+        .memo-title {
+            margin: 0 0 10px;
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 132px;
+            margin-bottom: 14px;
+            padding: 14px;
+            border: 2px solid #9aa5b1;
+            border-radius: 12px;
+            background: #ffffff;
+            color: #1f2933;
+            font: inherit;
+            resize: vertical;
+        }
+
+        textarea:focus {
+            outline: 4px solid #b8d7ff;
+            border-color: #2f80ed;
+        }
+
+        .memo-button {
+            min-height: 68px;
+            margin-bottom: 12px;
+            padding: 14px 12px;
+            font-size: 22px;
+            line-height: 1.25;
+            box-shadow: 0 4px 0 rgba(0, 0, 0, 0.16);
+        }
+
+        .remove-area {
+            margin-top: 34px;
+            padding-top: 18px;
+            border-top: 1px solid #cbd2d9;
+        }
+
+        .remove-button {
+            min-height: 50px;
+            padding: 12px;
+            background: #6b7280;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 700;
+            box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
+        }
+
+        @media (max-width: 360px) {
+            h1 {
+                font-size: 24px;
+            }
+
+            .person {
+                font-size: 20px;
+            }
+
+            .status-current {
+                font-size: 26px;
+            }
+
+            .main-button {
+                font-size: 25px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>緊急安否確認システム</h1>
+        <p class="person">{{ member["name"] }} さん</p>
+
+        <section class="status-box" aria-label="現在の状態">
+            <p class="status-label">現在の状態</p>
+            {% if latest %}
+                <p class="status-current">
+                    {% if latest["status"] == "fine" %}
+                        元気です
+                    {% elif latest["status"] == "trouble" %}
+                        困っています
+                    {% elif latest["status"] == "help" %}
+                        助けてください
+                    {% else %}
+                        未応答
+                    {% endif %}
+                </p>
+                <p class="status-time">{{ latest["created_at"].replace("T", " ") }}</p>
+            {% else %}
+                <p class="status-current">未応答</p>
+            {% endif %}
+        </section>
+
+        <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
+            <input type="hidden" name="status" value="fine">
+            <button class="main-button green" type="submit">元気です</button>
+        </form>
+
+        <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
+            <input type="hidden" name="status" value="trouble">
+            <button class="main-button yellow" type="submit">困っています</button>
+        </form>
+
+        <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
+            <input type="hidden" name="status" value="help">
+            <button class="main-button red" type="submit">助けてください</button>
+        </form>
+
+        <section class="memo-area" aria-label="状況メモ">
+            <p class="memo-title">状況メモ（任意）</p>
+            <form method="post" action="/user/{{ member['code'] }}/respond">
+                <textarea name="comment" placeholder="例：けがをしました。水が必要です。避難所にいます。"></textarea>
+
+                <button class="memo-button yellow" type="submit" name="status" value="trouble">
+                    困っています＋メモ送信
+                </button>
+
+                <button class="memo-button red" type="submit" name="status" value="help">
+                    助けてください＋メモ送信
+                </button>
+            </form>
+        </section>
+
+        <section class="remove-area" aria-label="登録解除">
+            <form method="post" action="/user/{{ member['code'] }}/deactivate">
+                <button class="remove-button" type="submit">
+                    この端末の登録を解除
+                </button>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

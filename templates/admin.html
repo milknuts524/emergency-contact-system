@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>管理画面</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+        .summary {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .card {
+            padding: 16px;
+            border-radius: 10px;
+            color: white;
+            font-size: 22px;
+            font-weight: bold;
+        }
+        .green { background: #2e7d32; }
+        .yellow { background: #f9a825; color: #222; }
+        .red { background: #c62828; }
+        .gray { background: #666; }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border-bottom: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+        .status-help { color: #c62828; font-weight: bold; }
+        .status-trouble { color: #b28704; font-weight: bold; }
+        .status-fine { color: #2e7d32; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>管理画面</h1>
+
+    <div class="summary">
+        <div class="card gray">登録 {{ counts["total"] }}</div>
+        <div class="card green">元気 {{ counts["fine"] }}</div>
+        <div class="card yellow">困ってます {{ counts["trouble"] }}</div>
+        <div class="card red">助けて {{ counts["help"] }}</div>
+        <div class="card gray">未応答 {{ counts["none"] }}</div>
+    </div>
+
+    <table>
+        <tr>
+            <th>名前</th>
+            <th>グループ</th>
+            <th>状態</th>
+            <th>コメント</th>
+            <th>時刻</th>
+            <th>URL</th>
+            <th>削除</th>
+        </tr>
+
+        {% for m in members %}
+        <tr>
+            <td>{{ m["name"] }}</td>
+            <td>{{ m["group_name"] }}</td>
+            <td>
+                {% if m["status"] == "fine" %}
+                    <span class="status-fine">元気です</span>
+                {% elif m["status"] == "trouble" %}
+                    <span class="status-trouble">困ってます</span>
+                {% elif m["status"] == "help" %}
+                    <span class="status-help">助けて</span>
+                {% else %}
+                    未応答
+                {% endif %}
+            </td>
+            <td>{{ m["comment"] or "" }}</td>
+            <td>{{ m["created_at"] or "" }}</td>
+            <td><a href="/user/{{ m['code'] }}">開く</a></td>
+            <td>
+                <form method="post" action="/admin/member/{{ m['id'] }}/delete"
+                      onsubmit="return confirm('この登録を削除しますか？');">
+                    <button type="submit">削除</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
