@@ -2,6 +2,14 @@
 <html lang="ja">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#c91f1f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Emergency">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/static/icons/icon.svg">
     <title>緊急連絡システム</title>
 </head>
 <body>
@@ -24,8 +32,8 @@
         </p>
 
         <p>
-            自分用コード<br>
-            <input type="text" name="code" required>
+            識別コード（自動生成）<br>
+            識別コードは自動で作成されます
         </p>
 
         <p>
@@ -37,5 +45,12 @@
     </form>
 
     <p>管理画面：<a href="/admin">/admin</a></p>
+    <script>
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", function () {
+                navigator.serviceWorker.register("/service-worker.js");
+            });
+        }
+    </script>
 </body>
 </html>

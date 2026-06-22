@@ -2,6 +2,14 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#c91f1f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Emergency">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/static/icons/icon.svg">
     <title>管理画面</title>
     <style>
         body {
@@ -10,8 +18,53 @@
         }
         .summary {
             display: flex;
+            flex-wrap: wrap;
             gap: 12px;
             margin-bottom: 20px;
+        }
+        .exports {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .import-box {
+            margin-bottom: 20px;
+            padding: 14px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background: #f7f7f7;
+        }
+        .import-box form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        .notice {
+            margin-bottom: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #e8f5e9;
+            color: #1b5e20;
+            font-weight: bold;
+        }
+        .error {
+            margin-bottom: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #ffebee;
+            color: #b71c1c;
+            font-weight: bold;
+        }
+        .export-link {
+            display: inline-block;
+            padding: 10px 14px;
+            border-radius: 6px;
+            background: #1f4f82;
+            color: white;
+            font-weight: bold;
+            text-decoration: none;
         }
         .card {
             padding: 16px;
@@ -42,6 +95,20 @@
 <body>
     <h1>管理画面</h1>
 
+    {% if request.query_params.get("imported") is not none %}
+        <div class="notice">
+            CSV取り込み結果：
+            追加 {{ request.query_params.get("imported") }} 件、
+            スキップ {{ request.query_params.get("skipped") }} 件
+        </div>
+    {% endif %}
+
+    {% if request.query_params.get("import_error") == "encoding" %}
+        <div class="error">CSVの文字コードを確認してください。</div>
+    {% elif request.query_params.get("import_error") == "csv" %}
+        <div class="error">CSVの形式を確認してください。</div>
+    {% endif %}
+
     <div class="summary">
         <div class="card gray">登録 {{ counts["total"] }}</div>
         <div class="card green">元気 {{ counts["fine"] }}</div>
@@ -50,14 +117,31 @@
         <div class="card gray">未応答 {{ counts["none"] }}</div>
     </div>
 
+    <div class="exports">
+        <a class="export-link" href="/admin/export/members.csv">登録者一覧CSV</a>
+        <a class="export-link" href="/admin/export/responses.csv">応答履歴CSV</a>
+    </div>
+
+    <div class="import-box">
+        <form method="post" action="/admin/import/members.csv" enctype="multipart/form-data">
+            <label>
+                登録者CSV読み込み
+                <input type="file" name="csv_file" accept=".csv,text/csv" required>
+            </label>
+            <button type="submit">CSVを読み込む</button>
+        </form>
+        <p>CSV列：name, group_name, staff_code（staff_code は任意）</p>
+    </div>
+
     <table>
         <tr>
             <th>名前</th>
             <th>グループ</th>
             <th>状態</th>
             <th>コメント</th>
-            <th>時刻</th>
-            <th>URL</th>
+            <th>最終応答日時</th>
+            <th>登録日時</th>
+            <th>識別コード</th>
             <th>削除</th>
         </tr>
 
@@ -77,8 +161,9 @@
                 {% endif %}
             </td>
             <td>{{ m["comment"] or "" }}</td>
-            <td>{{ m["created_at"] or "" }}</td>
-            <td><a href="/user/{{ m['code'] }}">開く</a></td>
+            <td>{{ m["latest_response_at"] or "未応答" }}</td>
+            <td>{{ m["registered_at"] or "" }}</td>
+            <td><a href="/user/{{ m['code'] }}">{{ m["code"] }}</a></td>
             <td>
                 <form method="post" action="/admin/member/{{ m['id'] }}/delete"
                       onsubmit="return confirm('この登録を削除しますか？');">
@@ -88,5 +173,12 @@
         </tr>
         {% endfor %}
     </table>
+    <script>
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", function () {
+                navigator.serviceWorker.register("/service-worker.js");
+            });
+        }
+    </script>
 </body>
 </html>
