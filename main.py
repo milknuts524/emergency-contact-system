@@ -872,6 +872,11 @@ def save_public_url_settings(
     conn.commit()
     conn.close()
 
+    update_env_file({
+        "PUBLIC_URL_MODE": public_url_mode,
+        "FIXED_PUBLIC_URL": fixed_public_url,
+    })
+
     return RedirectResponse("/admin/settings?public_url_saved=1", status_code=303)
 
 

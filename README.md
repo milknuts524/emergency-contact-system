@@ -78,8 +78,7 @@ http://127.0.0.1:8000
 - 既存の8000番ポート利用プロセスの停止
 - FastAPIサーバ起動
 - ローカル画面をブラウザで表示
-- Cloudflare Tunnel 起動
-- Cloudflare一時URLを `current_url.txt` に保存
+- 公開URLモードに応じたCloudflare Tunnel起動
 
 `start.command` は実行権限が必要です。もし起動できない場合は以下を実行してください。
 
@@ -269,7 +268,7 @@ cloudflared tunnel --url http://localhost:8000
 - Push通知登録もURL変更ごとにやり直しが必要です
 - 継続運用には向きません
 
-`start.command` で起動した場合、Cloudflareの一時URLは `current_url.txt` に保存されます。
+`start.command` で可変URLモードを使う場合、Cloudflareの一時URLは `current_url.txt` に保存されます。
 
 ### 固定URLモード
 
@@ -284,6 +283,95 @@ https://example.com
 固定URLでは、PWA登録やPush通知登録を維持しやすくなります。
 
 公開URLの運用モードは `/admin/settings` から変更できます。
+
+固定URLモードでターミナルを再起動したい場合は、起動中のターミナルを `control + C` で停止してから、もう一度 `start.command` をダブルクリックしてください。`start.command` は既存の8000番ポートのサーバを停止してから再起動します。
+
+### Cloudflare Tunnel 起動モード
+
+`start.command` は2種類の公開URLモードに対応しています。
+
+#### 可変URLモード
+
+```text
+PUBLIC_URL_MODE=dynamic
+```
+
+以下を使用します。
+
+```bash
+cloudflared tunnel --url http://localhost:8000
+```
+
+一時URLが発行されますが、起動ごとに変わります。
+
+#### 固定URLモード
+
+```text
+PUBLIC_URL_MODE=fixed
+```
+
+以下を使用します。
+
+```bash
+cloudflared tunnel run emergency
+```
+
+Cloudflare Named Tunnel と独自ドメイン設定が必要です。
+
+ドメイン取得だけでは固定URL運用はできません。取得したドメインをCloudflare管理下に置き、Named Tunnel作成、DNSルート作成、`config.yml` 作成まで完了してから `cloudflared tunnel run emergency` でFastAPIへ接続します。
+
+流れ:
+
+```text
+固定ドメイン取得
+↓
+Cloudflare管理下に置く
+↓
+Named Tunnel作成
+↓
+DNSルート作成
+↓
+config.yml作成
+↓
+cloudflared tunnel run emergency
+↓
+FastAPIへ接続
+```
+
+固定URLは `~/.cloudflared/config.yml` 側で管理します。
+
+固定URLモードを使う場合は、事前に以下が必要です。
+
+- `cloudflared tunnel login`
+- `cloudflared tunnel create emergency`
+- `cloudflared tunnel route dns emergency <固定URL>`
+- `~/.cloudflared/config.yml` の作成
+
+### 固定URL運用時の手動起動
+
+固定URL運用では、Cloudflare Named Tunnel を使用します。
+
+手動起動する場合:
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+別ターミナルで:
+
+```bash
+cloudflared tunnel run emergency
+```
+
+`start.command` を使用すると、FastAPIとNamed Tunnelをまとめて起動できます。
+
+`PUBLIC_URL_MODE=fixed` の場合、`start.command` は `cloudflared tunnel --url http://localhost:8000` を使用しません。
+
+Named Tunnel名は標準で `emergency` です。変更したい場合は `.env` に以下を追加してください。
+
+```text
+CLOUDFLARED_TUNNEL_NAME=emergency
+```
 
 ---
 
