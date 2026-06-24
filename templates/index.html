@@ -150,6 +150,30 @@
             margin-bottom: 6px;
         }
 
+        .guide-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.2em;
+            height: 2em;
+            margin: 0 4px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #ffffff;
+            color: #0f172a;
+            vertical-align: middle;
+        }
+
+        .guide-icon svg {
+            width: 1.35em;
+            height: 1.35em;
+            stroke: currentColor;
+            stroke-width: 2.4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+        }
+
         .install-button {
             display: none;
             margin-top: 14px;
@@ -212,23 +236,26 @@
 
         <section class="install-card browser-only" aria-label="ホーム画面に追加">
             <h2>ホーム画面に追加</h2>
-            <p>このシステムはホーム画面に追加して利用します。</p>
+            <p>このシステムは、ホーム画面に追加したあとに利用登録を行います。</p>
+            <p>追加後はホーム画面のアイコンから開き、「通知を許可」を押してください。</p>
 
             <h3>iPhone</h3>
             <ol>
-                <li>Safariでこのページを開く</li>
-                <li>共有ボタンを押す</li>
-                <li>ホーム画面に追加を選ぶ</li>
+                <li>Safariで開いていることを確認してください。Safari以外の場合は、Safariで開き直すことを推奨します。</li>
+                <li>画面下部または上部の共有アイコン <span class="guide-icon" aria-label="共有アイコン"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"></path><path d="M7.5 7.5 12 3l4.5 4.5"></path><path d="M6 11v8h12v-8"></path></svg></span> を押します。</li>
+                <li>「ホーム画面に追加」を選びます。</li>
+                <li>追加後、ホーム画面のアイコンから開きます。</li>
             </ol>
+            <p>iPhoneでは、このページから直接ホーム画面追加を実行できないため、上の手順で追加してください。</p>
 
             <h3>Android</h3>
             <ol>
-                <li>Chromeでこのページを開く</li>
-                <li>メニューを押す</li>
-                <li>アプリをインストール、またはホーム画面に追加を選ぶ</li>
+                <li>Chromeで開いていることを確認してください。Chrome以外の場合は、Chromeで開き直すことを推奨します。</li>
+                <li>右上のメニュー <span class="guide-icon">︙</span> を押します。</li>
+                <li>「アプリをインストール」または「ホーム画面に追加」を選びます。</li>
+                <li>追加後、ホーム画面のアイコンから開きます。</li>
             </ol>
-
-            <p>iPhoneでは、このページから直接ホーム画面追加を実行できないため、上の手順で追加してください。</p>
+            <p>Androidでインストール可能な場合は、下に「インストール」ボタンが表示されます。</p>
             <button id="install-app-button" class="install-button" type="button">インストール</button>
         </section>
 

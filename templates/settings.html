@@ -138,6 +138,12 @@
         {% if request.query_params.get("public_url_saved") == "1" %}
             <div class="notice">公開URL設定を保存しました。</div>
         {% endif %}
+        {% if request.query_params.get("status_labels_saved") == "1" %}
+            <div class="notice">状態ボタン文言を保存しました。</div>
+        {% endif %}
+        {% if request.query_params.get("status_label_error") == "empty" %}
+            <div class="notice">状態ボタン文言は空欄にできません。</div>
+        {% endif %}
 
         <form class="settings-card" method="post" action="/admin/settings/occupations">
             <label>
@@ -145,6 +151,30 @@
                 <textarea name="occupations_text" required>{{ occupations_text }}</textarea>
             </label>
             <button type="submit">保存</button>
+        </form>
+
+        <form class="settings-card" method="post" action="/admin/settings/status-labels" autocomplete="off">
+            <h2>状態ボタン文言</h2>
+            <p class="help">利用者画面の3つのボタンと、管理画面の状態表示に使われます。</p>
+            <div class="field">
+                <label>
+                    緑ボタン
+                    <input type="text" name="status_label_fine" value="{{ status_labels['fine'] }}" required>
+                </label>
+            </div>
+            <div class="field">
+                <label>
+                    黄ボタン
+                    <input type="text" name="status_label_trouble" value="{{ status_labels['trouble'] }}" required>
+                </label>
+            </div>
+            <div class="field">
+                <label>
+                    赤ボタン
+                    <input type="text" name="status_label_help" value="{{ status_labels['help'] }}" required>
+                </label>
+            </div>
+            <button type="submit">状態ボタン文言を保存</button>
         </form>
 
         <form class="settings-card" method="post" action="/admin/settings/access" autocomplete="off">

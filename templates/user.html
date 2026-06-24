@@ -74,6 +74,29 @@
             font-weight: 700;
         }
 
+        .sent-toast {
+            position: fixed;
+            top: max(14px, env(safe-area-inset-top));
+            right: 14px;
+            z-index: 20;
+            padding: 12px 16px;
+            border-radius: 999px;
+            background: #137a3a;
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: 800;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
+            opacity: 0;
+            transform: translateY(-8px);
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .sent-toast.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
         .button-form {
             margin: 0 0 14px;
         }
@@ -166,7 +189,7 @@
         }
 
         .push-area {
-            margin-top: 28px;
+            margin-bottom: 20px;
             padding: 18px;
             border: 2px solid #d7dde5;
             border-radius: 14px;
@@ -194,6 +217,10 @@
             color: #ffffff;
             font-size: 20px;
             box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
+        }
+
+        .push-area.is-hidden {
+            display: none;
         }
 
         .remove-button {
@@ -226,20 +253,29 @@
     </style>
 </head>
 <body>
+    <div id="sent-toast" class="sent-toast" role="status" aria-live="polite">通知完了</div>
     <main>
         <h1>緊急安否確認システム</h1>
         <p class="person">{{ member["name"] }} さん</p>
+
+        <section id="push-area" class="push-area" aria-label="通知設定">
+            <p class="push-title">通知設定</p>
+            <button id="push-subscribe-button" class="push-button" type="button">
+                通知を許可
+            </button>
+            <p id="push-subscribe-message" class="push-message"></p>
+        </section>
 
         <section class="status-box" aria-label="現在の状態">
             <p class="status-label">現在の状態</p>
             {% if latest %}
                 <p class="status-current">
                     {% if latest["status"] == "fine" %}
-                        元気です
+                        {{ status_labels["fine"] }}
                     {% elif latest["status"] == "trouble" %}
-                        困っています
+                        {{ status_labels["trouble"] }}
                     {% elif latest["status"] == "help" %}
-                        助けてください
+                        {{ status_labels["help"] }}
                     {% elif latest["status"] == "note" %}
                         メモあり
                     {% else %}
@@ -254,17 +290,17 @@
 
         <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
             <input type="hidden" name="status" value="fine">
-            <button class="main-button green" type="submit">元気です</button>
+            <button class="main-button green" type="submit">{{ status_labels["fine"] }}</button>
         </form>
 
         <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
             <input type="hidden" name="status" value="trouble">
-            <button class="main-button yellow" type="submit">困っています</button>
+            <button class="main-button yellow" type="submit">{{ status_labels["trouble"] }}</button>
         </form>
 
         <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
             <input type="hidden" name="status" value="help">
-            <button class="main-button red" type="submit">助けてください</button>
+            <button class="main-button red" type="submit">{{ status_labels["help"] }}</button>
         </form>
 
         <section class="memo-area" aria-label="状況メモ">
@@ -278,14 +314,6 @@
             </form>
         </section>
 
-        <section class="push-area" aria-label="通知設定">
-            <p class="push-title">通知設定</p>
-            <button id="push-subscribe-button" class="push-button" type="button">
-                通知を有効にする
-            </button>
-            <p id="push-subscribe-message" class="push-message"></p>
-        </section>
-
         <section class="remove-area" aria-label="登録解除">
             <form method="post" action="/user/{{ member['code'] }}/deactivate">
                 <button class="remove-button" type="submit">
@@ -297,6 +325,17 @@
     <script>
         const vapidPublicKey = {{ vapid_public_key | tojson }};
         localStorage.setItem("emergency_member_code", {{ member["code"] | tojson }});
+
+        const sentToast = document.getElementById("sent-toast");
+        const currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.get("sent") === "1") {
+            sentToast.classList.add("is-visible");
+            currentUrl.searchParams.delete("sent");
+            window.history.replaceState({}, "", currentUrl.toString());
+            window.setTimeout(function () {
+                sentToast.classList.remove("is-visible");
+            }, 2600);
+        }
 
         function urlBase64ToUint8Array(base64String) {
             const padding = "=".repeat((4 - base64String.length % 4) % 4);
@@ -321,6 +360,25 @@
 
         const pushButton = document.getElementById("push-subscribe-button");
         const pushMessage = document.getElementById("push-subscribe-message");
+        const pushArea = document.getElementById("push-area");
+
+        async function hidePushAreaIfSubscribed() {
+            if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+                return;
+            }
+
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                const subscription = await registration.pushManager.getSubscription();
+                if (subscription) {
+                    pushArea.classList.add("is-hidden");
+                }
+            } catch (error) {
+                console.warn("Push subscription check failed", error);
+            }
+        }
+
+        hidePushAreaIfSubscribed();
 
         pushButton.addEventListener("click", async function () {
             if (!vapidPublicKey) {
@@ -356,6 +414,9 @@
             if (response.ok) {
                 pushMessage.textContent = "通知登録済み";
                 pushButton.disabled = true;
+                window.setTimeout(function () {
+                    pushArea.classList.add("is-hidden");
+                }, 900);
             } else {
                 pushMessage.textContent = "通知登録に失敗しました。";
             }

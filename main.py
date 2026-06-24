@@ -163,6 +163,10 @@ def init_db():
         "public_url_mode": "dynamic",
         "fixed_public_url": "",
         "current_dynamic_url": "",
+        "response_reset_at": "",
+        "status_label_fine": "元気です",
+        "status_label_trouble": "困っています",
+        "status_label_help": "助けてください",
     }.items():
         cur.execute(
             """
@@ -215,6 +219,22 @@ def set_setting(conn, key, value):
         """,
         (key, value)
     )
+
+
+def get_response_reset_at(conn):
+    return get_setting(conn, "response_reset_at", "")
+
+
+def timestamped_csv_filename(prefix):
+    return f"{prefix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+
+
+def get_status_labels(conn):
+    return {
+        "fine": get_setting(conn, "status_label_fine", "元気です"),
+        "trouble": get_setting(conn, "status_label_trouble", "困っています"),
+        "help": get_setting(conn, "status_label_help", "助けてください"),
+    }
 
 
 def normalize_public_url(url):
@@ -486,12 +506,15 @@ def user_page(request: Request, code: str):
         response.delete_cookie("member_code")
         return response
 
+    response_reset_at = get_response_reset_at(conn)
     latest = conn.execute("""
         SELECT * FROM responses
         WHERE member_id = ?
+          AND (? = '' OR created_at > ?)
         ORDER BY created_at DESC
         LIMIT 1
-    """, (member["id"],)).fetchone()
+    """, (member["id"], response_reset_at, response_reset_at)).fetchone()
+    status_labels = get_status_labels(conn)
 
     conn.close()
 
@@ -502,6 +525,7 @@ def user_page(request: Request, code: str):
             "member": member,
             "latest": latest,
             "vapid_public_key": VAPID_PUBLIC_KEY,
+            "status_labels": status_labels,
         }
     )
 
@@ -583,7 +607,7 @@ def respond(
 
     conn.close()
 
-    return RedirectResponse(f"/user/{code}", status_code=303)
+    return RedirectResponse(f"/user/{code}?sent=1", status_code=303)
 
 
 @app.post("/user/{code}/deactivate")
@@ -615,6 +639,20 @@ def admin_delete_member(
     conn.close()
 
     return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/responses/reset")
+def admin_reset_responses(authorized: bool = Depends(check_admin)):
+    conn = get_conn()
+    set_setting(
+        conn,
+        "response_reset_at",
+        datetime.now().isoformat(timespec="seconds")
+    )
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse("/admin?responses_reset=1", status_code=303)
 
 
 @app.post("/admin/import/members.csv")
@@ -688,6 +726,7 @@ def admin_settings(request: Request, authorized: bool = Depends(check_admin)):
     conn = get_conn()
     public_url_mode = get_setting(conn, "public_url_mode", "dynamic")
     fixed_public_url = get_setting(conn, "fixed_public_url", "")
+    status_labels = get_status_labels(conn)
     current_dynamic_url = read_current_dynamic_url()
     if current_dynamic_url:
         set_setting(conn, "current_dynamic_url", current_dynamic_url)
@@ -708,6 +747,7 @@ def admin_settings(request: Request, authorized: bool = Depends(check_admin)):
             "admin_user": ADMIN_USER,
             "admin_password": ADMIN_PASSWORD,
             "registration_password": REGISTRATION_PASSWORD,
+            "status_labels": status_labels,
             "public_url_mode": public_url_mode,
             "fixed_public_url": fixed_public_url,
             "current_dynamic_url": current_dynamic_url,
@@ -732,6 +772,30 @@ def save_occupations(
     conn.close()
 
     return RedirectResponse("/admin/settings?saved=1", status_code=303)
+
+
+@app.post("/admin/settings/status-labels")
+def save_status_labels(
+    status_label_fine: str = Form(...),
+    status_label_trouble: str = Form(...),
+    status_label_help: str = Form(...),
+    authorized: bool = Depends(check_admin)
+):
+    status_label_fine = status_label_fine.strip()
+    status_label_trouble = status_label_trouble.strip()
+    status_label_help = status_label_help.strip()
+
+    if not status_label_fine or not status_label_trouble or not status_label_help:
+        return RedirectResponse("/admin/settings?status_label_error=empty", status_code=303)
+
+    conn = get_conn()
+    set_setting(conn, "status_label_fine", status_label_fine)
+    set_setting(conn, "status_label_trouble", status_label_trouble)
+    set_setting(conn, "status_label_help", status_label_help)
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse("/admin/settings?status_labels_saved=1", status_code=303)
 
 
 @app.post("/admin/settings/access")
@@ -836,6 +900,7 @@ def admin(
     authorized: bool = Depends(check_admin)
 ):
     conn = get_conn()
+    response_reset_at = get_response_reset_at(conn)
     sort_columns = {
         "name": "m.name",
         "date": "latest_response_at",
@@ -870,6 +935,7 @@ def admin(
         ON r.id = (
             SELECT id FROM responses
             WHERE member_id = m.id
+              AND (? = '' OR created_at > ?)
             ORDER BY created_at DESC
             LIMIT 1
         )
@@ -878,7 +944,7 @@ def admin(
             """ + sort_column + " " + sort_direction + """,
             m.group_name,
             m.name
-    """).fetchall()
+    """, (response_reset_at, response_reset_at)).fetchall()
 
     counts = {
         "total": len(members),
@@ -893,6 +959,7 @@ def admin(
         "percent": 0
     }
     occupation_summary = {}
+    status_labels = get_status_labels(conn)
 
     for m in members:
         if m["status"] in counts:
@@ -937,6 +1004,7 @@ def admin(
             "counts": counts,
             "response_summary": response_summary,
             "occupation_rates": occupation_rates,
+            "status_labels": status_labels,
             "public_url": get_public_url(request),
             "sort": sort,
             "direction": direction,
@@ -947,6 +1015,7 @@ def admin(
 @app.get("/admin/export/members.csv")
 def export_members_csv(authorized: bool = Depends(check_admin)):
     conn = get_conn()
+    response_reset_at = get_response_reset_at(conn)
     rows = conn.execute("""
         SELECT
             m.id,
@@ -963,12 +1032,13 @@ def export_members_csv(authorized: bool = Depends(check_admin)):
         ON r.id = (
             SELECT id FROM responses
             WHERE member_id = m.id
+              AND (? = '' OR created_at > ?)
             ORDER BY created_at DESC
             LIMIT 1
         )
         WHERE m.active = 1
         ORDER BY m.group_name, m.name
-    """).fetchall()
+    """, (response_reset_at, response_reset_at)).fetchall()
     conn.close()
 
     fieldnames = [
@@ -984,7 +1054,7 @@ def export_members_csv(authorized: bool = Depends(check_admin)):
     ]
 
     return csv_response(
-        "members.csv",
+        timestamped_csv_filename("members"),
         fieldnames,
         [dict(row) for row in rows]
     )
@@ -1019,7 +1089,7 @@ def export_responses_csv(authorized: bool = Depends(check_admin)):
     ]
 
     return csv_response(
-        "responses.csv",
+        timestamped_csv_filename("responses"),
         fieldnames,
         [dict(row) for row in rows]
     )

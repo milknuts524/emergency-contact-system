@@ -133,6 +133,23 @@
             font-size: 22px;
             font-weight: bold;
         }
+        .response-rate-header {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .reset-response-button {
+            padding: 10px 14px;
+            border: none;
+            border-radius: 6px;
+            background: #666;
+            color: white;
+            font: inherit;
+            font-weight: bold;
+            cursor: pointer;
+        }
         .occupation-rates {
             display: flex;
             flex-wrap: wrap;
@@ -228,11 +245,15 @@
         </div>
     {% endif %}
 
+    {% if request.query_params.get("responses_reset") == "1" %}
+        <div class="notice">返信率をリセットしました。全員の状態を未返信として表示します。</div>
+    {% endif %}
+
     <div class="summary">
         <div class="card gray">登録 {{ counts["total"] }}</div>
-        <div class="card green">元気 {{ counts["fine"] }}</div>
-        <div class="card yellow">困ってます {{ counts["trouble"] }}</div>
-        <div class="card red">助けて {{ counts["help"] }}</div>
+        <div class="card green">{{ status_labels["fine"] }} {{ counts["fine"] }}</div>
+        <div class="card yellow">{{ status_labels["trouble"] }} {{ counts["trouble"] }}</div>
+        <div class="card red">{{ status_labels["help"] }} {{ counts["help"] }}</div>
         <div class="card gray">未応答 {{ counts["none"] }}</div>
     </div>
 
@@ -284,10 +305,16 @@
     </div>
 
     <div class="response-rate-box">
-        <p class="response-rate-main">
-            返信率 {{ response_summary["percent"] }}%
-            ({{ response_summary["responded"] }}/{{ response_summary["total"] }})
-        </p>
+        <div class="response-rate-header">
+            <p class="response-rate-main">
+                返信率 {{ response_summary["percent"] }}%
+                ({{ response_summary["responded"] }}/{{ response_summary["total"] }})
+            </p>
+            <form method="post" action="/admin/responses/reset"
+                  onsubmit="return confirm('返信率をリセットし、全員の状態を未返信に戻します。実行しますか？');">
+                <button class="reset-response-button" type="submit">返信率をリセット</button>
+            </form>
+        </div>
         <div>
             職種別
             <div class="occupation-rates">
@@ -330,11 +357,11 @@
             <td>{{ m["group_name"] }}</td>
             <td>
                 {% if m["status"] == "fine" %}
-                    <span class="status-fine">元気です</span>
+                    <span class="status-fine">{{ status_labels["fine"] }}</span>
                 {% elif m["status"] == "trouble" %}
-                    <span class="status-trouble">困ってます</span>
+                    <span class="status-trouble">{{ status_labels["trouble"] }}</span>
                 {% elif m["status"] == "help" %}
-                    <span class="status-help">助けて</span>
+                    <span class="status-help">{{ status_labels["help"] }}</span>
                 {% elif m["status"] == "note" %}
                     メモあり
                 {% else %}
