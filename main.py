@@ -590,10 +590,10 @@ def get_active_push_templates(conn):
 
 def build_response_dashboard_data(conn, sort="status", direction="asc"):
     response_reset_at = get_response_reset_at(conn)
+    sort_params = []
     sort_columns = {
         "name": "m.name",
         "date": "latest_response_at",
-        "occupation": "m.group_name",
         "occupation_memo": "m.occupation_memo",
         "contact": "m.contact",
         "comment": "r.comment",
@@ -609,7 +609,20 @@ def build_response_dashboard_data(conn, sort="status", direction="asc"):
         "registered_at": "registered_at",
         "latest_response_at": "latest_response_at",
     }
-    sort_column = sort_columns.get(sort, sort_columns["status"])
+    if sort == "occupation":
+        occupations = get_occupation_list()
+        occupation_cases = []
+        for index, occupation in enumerate(occupations, start=1):
+            occupation_cases.append("WHEN ? THEN ?")
+            sort_params.extend([occupation, index])
+        sort_column = (
+            "CASE m.group_name "
+            + " ".join(occupation_cases)
+            + " ELSE ? END"
+        )
+        sort_params.append(len(occupations) + 1)
+    else:
+        sort_column = sort_columns.get(sort, sort_columns["status"])
     sort_direction = "DESC" if direction == "desc" else "ASC"
 
     members = conn.execute("""
@@ -639,7 +652,7 @@ def build_response_dashboard_data(conn, sort="status", direction="asc"):
             """ + sort_column + " " + sort_direction + """,
             m.group_name,
             m.name
-    """, (response_reset_at, response_reset_at)).fetchall()
+    """, (response_reset_at, response_reset_at, *sort_params)).fetchall()
 
     counts = {
         "total": len(members),
@@ -666,7 +679,7 @@ def build_response_dashboard_data(conn, sort="status", direction="asc"):
         member_dict = dict(m)
         member_groups = member_group_map.get(m["id"], [])
         member_dict["notification_groups"] = ";".join(member_groups)
-        member_dict["notification_groups_display"] = "、".join(member_groups) if member_groups else "未所属"
+        member_dict["notification_groups_display"] = "、".join(member_groups) if member_groups else "-"
         members_for_template.append(member_dict)
 
         if m["status"] in counts:
@@ -1137,6 +1150,21 @@ def get_push_subscriptions_for_admin(conn):
         item["endpoint_type"] = endpoint_type(item["endpoint"])
         subscriptions.append(item)
     return subscriptions
+
+
+def get_announcements_for_admin(conn, limit=None):
+    query = """
+        SELECT
+            a.*,
+            ng.name AS target_group_name
+        FROM announcements a
+        LEFT JOIN notification_groups ng ON ng.id = a.target_group_id
+        ORDER BY COALESCE(a.updated_at, a.created_at) DESC
+    """
+    if limit is not None:
+        query += " LIMIT ?"
+        return conn.execute(query, (limit,)).fetchall()
+    return conn.execute(query).fetchall()
 
 
 def delete_member_completely(conn, member_id):
@@ -1643,16 +1671,7 @@ def admin_save_member_groups(
 @app.get("/admin/announcements")
 def admin_announcements(request: Request, authorized: bool = Depends(check_admin)):
     conn = get_conn()
-    announcements = conn.execute(
-        """
-        SELECT
-            a.*,
-            ng.name AS target_group_name
-        FROM announcements a
-        LEFT JOIN notification_groups ng ON ng.id = a.target_group_id
-        ORDER BY COALESCE(a.updated_at, a.created_at) DESC
-        """
-    ).fetchall()
+    announcements = get_announcements_for_admin(conn)
     conn.close()
 
     return templates.TemplateResponse(
@@ -1812,6 +1831,55 @@ def admin_unpublish_announcement(
     conn.close()
 
     return RedirectResponse("/admin/announcements?saved=1", status_code=303)
+
+
+@app.post("/admin/announcements/{announcement_id}/push")
+def admin_push_announcement(
+    request: Request,
+    announcement_id: int,
+    redirect_to: str = Form("admin"),
+    authorized: bool = Depends(check_admin)
+):
+    conn = get_conn()
+    announcement = conn.execute(
+        "SELECT * FROM announcements WHERE id = ?",
+        (announcement_id,)
+    ).fetchone()
+    if not announcement:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Announcement not found")
+
+    subscriptions = conn.execute("""
+        SELECT ps.*, m.code
+        FROM push_subscriptions ps
+        JOIN members m ON m.id = ps.member_id
+        WHERE ps.active = 1 AND m.active = 1
+    """).fetchall()
+
+    public_url = get_public_url(request)
+    payload_url = f"{public_url}/staff" if public_url else "/staff"
+    title = "お知らせ"
+    body = f"「{announcement['title']}」に通知が届いています"
+    success = 0
+    failed = 0
+
+    for subscription in subscriptions:
+        result = send_push_notification(subscription, title, body, payload_url)
+        if result["ok"]:
+            success += 1
+        else:
+            failed += 1
+            if result["inactive"]:
+                deactivate_push_subscription(conn, subscription["id"])
+
+    conn.commit()
+    conn.close()
+
+    destination = "/admin/announcements" if redirect_to == "announcements" else "/admin"
+    return RedirectResponse(
+        f"{destination}?announcement_push_success={success}&announcement_push_failed={failed}",
+        status_code=303
+    )
 
 
 @app.get("/admin/push-templates")
@@ -2508,6 +2576,22 @@ def admin_public_url_qr(request: Request, authorized: bool = Depends(check_admin
     )
 
 
+@app.get("/register-qr.png")
+def register_qr(request: Request):
+    public_url = get_public_url(request) or str(request.base_url).rstrip("/")
+    register_url = f"{public_url}/"
+
+    image = qrcode.make(register_url)
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+
+    return Response(
+        content=output.getvalue(),
+        media_type="image/png",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/admin")
 def admin(
     request: Request,
@@ -2520,6 +2604,7 @@ def admin(
     notification_groups = list_notification_groups(conn, active_only=True)
     push_templates = get_active_push_templates(conn)
     app_settings = get_app_settings(conn)
+    announcements = get_announcements_for_admin(conn, limit=5)
     push_test_mode_enabled = app_settings["push_test_mode_enabled"] == "1"
     push_subscriptions = (
         get_push_subscriptions_for_admin(conn)
@@ -2542,6 +2627,7 @@ def admin(
             "status_labels": dashboard_data["status_labels"],
             "notification_groups": notification_groups,
             "push_templates": push_templates,
+            "announcements": announcements,
             "push_subscriptions": push_subscriptions,
             "push_test_mode_enabled": push_test_mode_enabled,
             "public_url": public_url,

@@ -9,9 +9,30 @@
     <style>
         body { margin: 0; padding: 20px; background: #f4f6f8; color: #1f2933; font-family: sans-serif; font-size: 18px; }
         .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
-        .button { display: inline-block; padding: 10px 14px; border: 0; border-radius: 8px; background: #1f4f82; color: white; font: inherit; font-weight: bold; text-decoration: none; cursor: pointer; }
-        .danger { background: #666; }
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 50px;
+            padding: 0 16px;
+            border: 0;
+            border-radius: 8px;
+            box-sizing: border-box;
+            background: #1f4f82;
+            color: white;
+            font: inherit;
+            font-size: 18px;
+            font-weight: bold;
+            line-height: 1;
+            text-decoration: none;
+            vertical-align: middle;
+            cursor: pointer;
+        }
+        .button.primary { background: #0f766e; }
+        .button.end { background: #666; }
+        .button.notify { background: #c62828; }
         .notice { margin-bottom: 16px; padding: 12px; border-radius: 8px; background: #e8f5e9; color: #1b5e20; font-weight: bold; }
+        form.inline { display: inline; }
         table { width: 100%; border-collapse: collapse; background: white; }
         th, td { padding: 10px; border-bottom: 1px solid #ccd5df; text-align: left; vertical-align: top; }
         .status { font-weight: bold; }
@@ -23,9 +44,16 @@
     {% if request.query_params.get("saved") == "1" %}
         <div class="notice">保存しました。</div>
     {% endif %}
+    {% if request.query_params.get("announcement_push_success") is not none %}
+        <div class="notice">
+            お知らせ通知送信結果：
+            成功 {{ request.query_params.get("announcement_push_success") }} 件、
+            失敗 {{ request.query_params.get("announcement_push_failed") or "0" }} 件
+        </div>
+    {% endif %}
 
     <div class="toolbar">
-        <a class="button" href="/admin/announcements/new">新規作成</a>
+        <a class="button primary" href="/admin/announcements/new">新規作成</a>
         <a class="button" href="/admin">管理画面へ戻る</a>
         <a class="button" href="/staff">公開画面を開く</a>
     </div>
@@ -54,10 +82,14 @@
                 <td>
                     <a class="button" href="/admin/announcements/{{ item['id'] }}/edit">編集</a>
                     {% if item["published"] == 1 %}
-                        <form method="post" action="/admin/announcements/{{ item['id'] }}/unpublish" onsubmit="return confirm('このお知らせを非公開にしますか？');">
-                            <button class="button danger" type="submit">非公開</button>
+                        <form class="inline" method="post" action="/admin/announcements/{{ item['id'] }}/unpublish" onsubmit="return confirm('このお知らせを終了しますか？');">
+                            <button class="button end" type="submit">終了</button>
                         </form>
                     {% endif %}
+                    <form class="inline" method="post" action="/admin/announcements/{{ item['id'] }}/push" onsubmit="return confirm('このお知らせを全員へPush通知しますか？');">
+                        <input type="hidden" name="redirect_to" value="announcements">
+                        <button class="button notify" type="submit">通知</button>
+                    </form>
                 </td>
             </tr>
         {% endfor %}

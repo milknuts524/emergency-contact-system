@@ -208,7 +208,8 @@
         }
 
         .push-area {
-            margin-bottom: 20px;
+            margin-top: 16px;
+            margin-bottom: 0;
             padding: 18px;
             border: 2px solid #d7dde5;
             border-radius: 14px;
@@ -252,6 +253,29 @@
             box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
         }
 
+        .register-qr-area {
+            margin-top: 28px;
+            padding-top: 18px;
+            border-top: 1px solid #cbd2d9;
+            text-align: center;
+        }
+
+        .register-qr-title {
+            margin: 0 0 8px;
+            color: #52606d;
+            font-size: 17px;
+            font-weight: 800;
+        }
+
+        .register-qr-image {
+            width: min(220px, 72vw);
+            height: auto;
+            padding: 8px;
+            border: 1px solid #d7dde5;
+            border-radius: 10px;
+            background: #ffffff;
+        }
+
         @media (max-width: 360px) {
             h1 {
                 font-size: 24px;
@@ -276,14 +300,6 @@
     <main>
         <h1>{{ app_name() }}</h1>
         <p class="person">{{ member["name"] }} さん</p>
-
-        <section id="push-area" class="push-area" aria-label="通知設定">
-            <p class="push-title">通知設定</p>
-            <button id="push-subscribe-button" class="push-button" type="button">
-                通知を許可
-            </button>
-            <p id="push-subscribe-message" class="push-message"></p>
-        </section>
 
         <section class="status-box" aria-label="現在の状態">
             <p class="status-label">現在の状態</p>
@@ -333,6 +349,13 @@
             </form>
             <a class="result-link" href="/result">結果を見る</a>
             <a class="result-link" href="/staff">お知らせ</a>
+            <section id="push-area" class="push-area" aria-label="通知設定">
+                <p class="push-title">通知設定</p>
+                <button id="push-subscribe-button" class="push-button" type="button">
+                    通知を許可
+                </button>
+                <p id="push-subscribe-message" class="push-message"></p>
+            </section>
         </section>
 
         <section class="remove-area" aria-label="登録解除">
@@ -341,6 +364,11 @@
                     この端末の登録を解除
                 </button>
             </form>
+        </section>
+
+        <section class="register-qr-area" aria-label="職員登録用QRコード">
+            <p class="register-qr-title">他の職員の登録用QRコード</p>
+            <img class="register-qr-image" src="/register-qr.png" alt="職員登録用QRコード">
         </section>
     </main>
     <script>

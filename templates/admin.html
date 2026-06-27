@@ -126,6 +126,62 @@
                 grid-template-columns: 1fr;
             }
         }
+        .announcement-box {
+            margin-bottom: 20px;
+            padding: 16px;
+            border: 2px solid #b7c7d9;
+            border-radius: 10px;
+            background: #f0f7ff;
+        }
+        .announcement-box h2 {
+            margin: 0 0 12px;
+            font-size: 26px;
+        }
+        .announcement-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .announcement-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 52px;
+            padding: 0 18px;
+            border: none;
+            border-radius: 8px;
+            background: #0f766e;
+            color: #ffffff;
+            font: inherit;
+            font-size: 18px;
+            font-weight: bold;
+            line-height: 1;
+            text-decoration: none;
+            cursor: pointer;
+            vertical-align: middle;
+            box-sizing: border-box;
+        }
+        .announcement-button.secondary {
+            background: #1f4f82;
+        }
+        .announcement-button.end {
+            background: #6b7280;
+        }
+        .announcement-button.notify {
+            background: #c62828;
+        }
+        .announcement-mini-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #ffffff;
+        }
+        .announcement-mini-table th,
+        .announcement-mini-table td {
+            padding: 9px;
+            border-bottom: 1px solid #ccd5df;
+            vertical-align: top;
+        }
         .push-box input,
         .push-box select,
         .push-box textarea {
@@ -185,9 +241,7 @@
             height: 22px;
         }
         .memo-form {
-            display: flex;
-            gap: 6px;
-            align-items: center;
+            display: block;
         }
         .memo-form input {
             width: 5.5em;
@@ -198,14 +252,7 @@
             font: inherit;
         }
         .memo-form button {
-            padding: 7px 9px;
-            border: none;
-            border-radius: 6px;
-            background: #1f4f82;
-            color: white;
-            font: inherit;
-            font-weight: bold;
-            cursor: pointer;
+            display: none;
         }
         .sort-link {
             color: #1f4f82;
@@ -424,10 +471,17 @@
     {% endif %}
 
     {% if request.query_params.get("responses_reset") == "1" %}
-        <div class="notice">返信率をリセットしました。全員の状態を未返信として表示します。</div>
+        <div class="notice">返信をリセットしました。全員の状態を未返信として表示します。</div>
     {% endif %}
     {% if request.query_params.get("member_groups_saved") == "1" %}
         <div class="notice">通知グループ所属を保存しました。</div>
+    {% endif %}
+    {% if request.query_params.get("announcement_push_success") is not none %}
+        <div class="notice">
+            お知らせ通知送信結果：
+            成功 {{ request.query_params.get("announcement_push_success") }} 件、
+            失敗 {{ request.query_params.get("announcement_push_failed") or "0" }} 件
+        </div>
     {% endif %}
 
     <div class="summary">
@@ -446,7 +500,6 @@
             <button class="action-button" type="button" id="csv-import-button">CSVを読み込む</button>
         </form>
         <a class="action-button" href="/admin/groups">通知グループ管理</a>
-        <a class="action-button" href="/admin/announcements">お知らせ管理</a>
         <a class="action-button" href="/admin/push-templates">Push定型文管理</a>
         <a class="action-button" href="/admin/settings">設定</a>
     </div>
@@ -470,6 +523,47 @@
                 src="/admin/public-url-qr.png"
                 alt="公開URLのQRコード"
             >
+        {% endif %}
+    </div>
+
+    <div class="announcement-box">
+        <h2>お知らせ管理</h2>
+        <div class="announcement-actions">
+            <a class="announcement-button" href="/admin/announcements/new">新規作成</a>
+            <a class="announcement-button secondary" href="/admin/announcements">一覧を開く</a>
+            <a class="announcement-button secondary" href="/staff">公開画面を開く</a>
+        </div>
+
+        {% if announcements %}
+            <table class="announcement-mini-table">
+                <tr>
+                    <th>タイトル</th>
+                    <th>公開</th>
+                    <th>更新日時</th>
+                    <th>操作</th>
+                </tr>
+                {% for item in announcements %}
+                    <tr>
+                        <td>{{ item["title"] }}</td>
+                        <td>{% if item["published"] == 1 %}公開{% else %}非公開{% endif %}</td>
+                        <td>{{ item["updated_at"] or item["created_at"] or "" }}</td>
+                        <td>
+                            <a class="announcement-button secondary" href="/admin/announcements/{{ item['id'] }}/edit">編集</a>
+                            {% if item["published"] == 1 %}
+                                <form method="post" action="/admin/announcements/{{ item['id'] }}/unpublish" style="display:inline;" onsubmit="return confirm('このお知らせを終了しますか？');">
+                                    <button class="announcement-button end" type="submit">終了</button>
+                                </form>
+                            {% endif %}
+                            <form method="post" action="/admin/announcements/{{ item['id'] }}/push" style="display:inline;" onsubmit="return confirm('このお知らせを全員へPush通知しますか？');">
+                                <input type="hidden" name="redirect_to" value="admin">
+                                <button class="announcement-button notify" type="submit">通知</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p>お知らせはまだありません。</p>
         {% endif %}
     </div>
 
@@ -567,8 +661,8 @@
                 ({{ response_summary["responded"] }}/{{ response_summary["total"] }})
             </p>
             <form method="post" action="/admin/responses/reset"
-                  onsubmit="return confirm('返信率をリセットし、全員の状態を未返信に戻します。実行しますか？');">
-                <button class="reset-response-button" type="submit">返信率をリセット</button>
+                  onsubmit="return confirm('返信をリセットし、全員の状態を未返信に戻します。実行しますか？');">
+                <button class="reset-response-button" type="submit">返信をリセット</button>
             </form>
         </div>
         <div>
@@ -595,7 +689,6 @@
         <a href="/admin?sort=comment&direction={{ 'desc' if sort == 'comment' and direction == 'asc' else 'asc' }}">コメント{% if sort == 'comment' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
         <a href="/admin?sort=registered_at&direction={{ 'asc' if sort == 'registered_at' and direction == 'desc' else 'desc' }}">登録時刻{% if sort == 'registered_at' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
         <a href="/admin?sort=latest_response_at&direction={{ 'asc' if sort == 'latest_response_at' and direction == 'desc' else 'desc' }}">最終時刻{% if sort == 'latest_response_at' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
-        <a href="/admin?sort=code&direction={{ 'desc' if sort == 'code' and direction == 'asc' else 'asc' }}">識別コード{% if sort == 'code' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
     </div>
 
     <table>
@@ -615,7 +708,6 @@
             <th><a class="sort-link" href="/admin?sort=comment&direction={{ 'desc' if sort == 'comment' and direction == 'asc' else 'asc' }}">コメント{% if sort == 'comment' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             <th><a class="sort-link" href="/admin?sort=latest_response_at&direction={{ 'asc' if sort == 'latest_response_at' and direction == 'desc' else 'desc' }}">最終応答日時{% if sort == 'latest_response_at' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             <th><a class="sort-link" href="/admin?sort=registered_at&direction={{ 'asc' if sort == 'registered_at' and direction == 'desc' else 'desc' }}">登録日時{% if sort == 'registered_at' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
-            <th><a class="sort-link" href="/admin?sort=code&direction={{ 'desc' if sort == 'code' and direction == 'asc' else 'asc' }}">識別コード{% if sort == 'code' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             <th>削除</th>
         </tr>
 
@@ -643,7 +735,7 @@
             <td>
                 {{ m["notification_groups_display"] }}
                 <br>
-                <a href="/admin/member/{{ m['id'] }}/groups">編集</a>
+                <a href="/admin/member/{{ m['id'] }}/groups" title="通知グループ編集" aria-label="{{ m['name'] }}の通知グループを編集">[i]</a>
             </td>
             <td>
                 {% if m["status"] == "fine" %}
@@ -659,9 +751,8 @@
                 {% endif %}
             </td>
             <td>{{ m["comment"] or "" }}</td>
-            <td>{{ m["latest_response_at"] or "未応答" }}</td>
-            <td>{{ m["registered_at"] or "" }}</td>
-            <td><a href="/user/{{ m['code'] }}">{{ m["code"] }}</a></td>
+            <td>{% if m["latest_response_at"] %}{{ m["latest_response_at"].replace("T", " ")[:16] }}{% else %}未応答{% endif %}</td>
+            <td>{{ (m["registered_at"] or "")[:10] }}</td>
             <td>
                 <form method="post" action="/admin/member/{{ m['id'] }}/delete"
                       onsubmit="return confirm('この登録と関連データを完全に削除しますか？');">
@@ -762,6 +853,15 @@
                 }).length;
                 selectAllMembers.checked = checkedCount === memberSelectCheckboxes.length && memberSelectCheckboxes.length > 0;
                 selectAllMembers.indeterminate = checkedCount > 0 && checkedCount < memberSelectCheckboxes.length;
+            });
+        });
+
+        document.querySelectorAll(".memo-form input").forEach(function (input) {
+            input.addEventListener("keydown", function (event) {
+                if (event.key === "Enter") {
+                    event.preventDefault();
+                    input.form.submit();
+                }
             });
         });
 
