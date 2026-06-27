@@ -396,6 +396,10 @@
             {% endif %}
             <p>response body</p>
             <pre>{{ request.query_params.get("push_test_body") or "" }}</pre>
+            {% if request.query_params.get("push_test_payload") %}
+                <p>送信payload</p>
+                <pre>{{ request.query_params.get("push_test_payload") }}</pre>
+            {% endif %}
             {% if request.query_params.get("push_test_type") == "fcm" and request.query_params.get("push_test_status") == "201" and request.query_params.get("push_test_ok") == "1" %}
                 <div class="android-check">
                     FCMは成功しています。端末に表示されない場合はAndroid側を確認してください。
@@ -411,6 +415,9 @@
     {% endif %}
     {% if request.query_params.get("push_test_error") == "missing" %}
         <div class="error">テスト対象のPush購読が見つかりません。</div>
+    {% endif %}
+    {% if request.query_params.get("push_test_error") == "not_fcm" %}
+        <div class="error">Android Pushデバッグ送信はFCM endpointのみ対象です。</div>
     {% endif %}
     {% if request.query_params.get("push_error") == "target" %}
         <div class="error">送信対象の通知グループが見つかりません。</div>
@@ -532,11 +539,18 @@
                             <td>{{ subscription["endpoint_type"] }}</td>
                             <td>{{ subscription["created_at"] or "" }}</td>
                             <td class="endpoint-text">{{ subscription["endpoint"] }}</td>
-                            <td>
-                                <form method="post" action="/admin/push/test/{{ subscription['id'] }}">
-                                    <button class="test-button" type="submit">この端末へテスト送信</button>
+                        <td>
+                            <form method="post" action="/admin/push/test/{{ subscription['id'] }}"
+                                  onsubmit="return confirm('この端末へテスト通知を送りますか？');">
+                                <button class="test-button" type="submit">この端末へテスト送信</button>
+                            </form>
+                            {% if subscription["endpoint_type"] == "fcm" %}
+                                <form method="post" action="/admin/push/debug-android/{{ subscription['id'] }}"
+                                      onsubmit="return confirm('このAndroid端末へデバッグPushを送りますか？');">
+                                    <button class="test-button" type="submit">Android Pushデバッグ送信</button>
                                 </form>
-                            </td>
+                            {% endif %}
+                        </td>
                         </tr>
                     {% endfor %}
                 </table>
@@ -575,7 +589,7 @@
         並び替え：
         <a href="/admin?sort=name&direction={{ 'desc' if sort == 'name' and direction == 'asc' else 'asc' }}">名前{% if sort == 'name' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
         <a href="/admin?sort=occupation&direction={{ 'desc' if sort == 'occupation' and direction == 'asc' else 'asc' }}">職種{% if sort == 'occupation' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
-        <a href="/admin?sort=occupation_memo&direction={{ 'desc' if sort == 'occupation_memo' and direction == 'asc' else 'asc' }}">職種メモ{% if sort == 'occupation_memo' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
+        <a href="/admin?sort=occupation_memo&direction={{ 'desc' if sort == 'occupation_memo' and direction == 'asc' else 'asc' }}">メモ{% if sort == 'occupation_memo' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
         <a href="/admin?sort=contact&direction={{ 'desc' if sort == 'contact' and direction == 'asc' else 'asc' }}">連絡先{% if sort == 'contact' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
         <a href="/admin?sort=status&direction={{ 'desc' if sort == 'status' and direction == 'asc' else 'asc' }}">色別{% if sort == 'status' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
         <a href="/admin?sort=comment&direction={{ 'desc' if sort == 'comment' and direction == 'asc' else 'asc' }}">コメント{% if sort == 'comment' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
@@ -594,7 +608,7 @@
             </th>
             <th><a class="sort-link" href="/admin?sort=name&direction={{ 'desc' if sort == 'name' and direction == 'asc' else 'asc' }}">名前{% if sort == 'name' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             <th><a class="sort-link" href="/admin?sort=occupation&direction={{ 'desc' if sort == 'occupation' and direction == 'asc' else 'asc' }}">職種{% if sort == 'occupation' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
-            <th><a class="sort-link" href="/admin?sort=occupation_memo&direction={{ 'desc' if sort == 'occupation_memo' and direction == 'asc' else 'asc' }}">職種メモ{% if sort == 'occupation_memo' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            <th><a class="sort-link" href="/admin?sort=occupation_memo&direction={{ 'desc' if sort == 'occupation_memo' and direction == 'asc' else 'asc' }}">メモ{% if sort == 'occupation_memo' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             <th><a class="sort-link" href="/admin?sort=contact&direction={{ 'desc' if sort == 'contact' and direction == 'asc' else 'asc' }}">連絡先{% if sort == 'contact' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             <th>通知グループ</th>
             <th><a class="sort-link" href="/admin?sort=status&direction={{ 'desc' if sort == 'status' and direction == 'asc' else 'asc' }}">状態{% if sort == 'status' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
@@ -718,7 +732,11 @@
         const pushSentToast = document.getElementById("push-sent-toast");
         const pushSendForm = document.getElementById("push-send-form");
         if (pushSendForm) {
-            pushSendForm.addEventListener("submit", function () {
+            pushSendForm.addEventListener("submit", function (event) {
+                if (!confirm("通知を送りますか？")) {
+                    event.preventDefault();
+                    return;
+                }
                 pushSentToast.classList.add("is-visible");
             });
         }

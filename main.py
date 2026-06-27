@@ -101,6 +101,7 @@ VAPID_CLAIMS = {
         os.getenv("VAPID_SUBJECT", "mailto:admin@example.com")
     )
 }
+DEBUG_UI = os.getenv("DEBUG_UI", "").lower() in ("1", "true", "yes", "on")
 ENV_FILE = Path(".env")
 CURRENT_URL_FILE = Path("current_url.txt")
 MANIFEST_FILE = Path("static/manifest.json")
@@ -1020,7 +1021,7 @@ def import_members_from_csv(content):
     return added, skipped
 
 
-def send_push_notification(subscription, title, body, url="/"):
+def send_push_notification(subscription, title, body, url="/", payload_override=None):
     result = {
         "ok": False,
         "error": "",
@@ -1050,11 +1051,12 @@ def send_push_notification(subscription, title, body, url="/"):
             "auth": subscription["auth"],
         }
     }
-    payload = {
+    payload = payload_override or {
         "title": title or "院内緊急連絡",
         "body": body or "安否確認をお願いします",
         "url": url,
     }
+    result["payload"] = payload
     vapid_claims = dict(VAPID_CLAIMS)
 
     try:
@@ -1303,6 +1305,7 @@ def user_page(request: Request, code: str):
             "latest": latest,
             "vapid_public_key": VAPID_PUBLIC_KEY,
             "status_labels": status_labels,
+            "debug_ui": DEBUG_UI,
         }
     )
 
@@ -1330,6 +1333,10 @@ async def push_subscribe(code: str, request: Request):
         raise HTTPException(status_code=400, detail="Invalid subscription")
 
     conn.execute(
+        "UPDATE push_subscriptions SET active = 0 WHERE member_id = ?",
+        (member["id"],)
+    )
+    conn.execute(
         """
         INSERT INTO push_subscriptions
             (member_id, endpoint, p256dh, auth, created_at, active)
@@ -1338,6 +1345,7 @@ async def push_subscribe(code: str, request: Request):
             member_id = excluded.member_id,
             p256dh = excluded.p256dh,
             auth = excluded.auth,
+            created_at = excluded.created_at,
             active = 1
         """,
         (
@@ -2186,6 +2194,65 @@ def admin_send_push_test(
             f"&push_test_body={quote(str(result['response_body'])[:500])}"
             f"&push_test_exception={quote(result['exception_class'])}"
             f"&push_test_message={quote(result['exception_message'][:500])}"
+            f"&push_test_vapid_warning={1 if result['vapid_warning'] else 0}"
+        ),
+        status_code=303
+    )
+
+
+@app.post("/admin/push/debug-android/{subscription_id}")
+def admin_send_android_push_debug(
+    request: Request,
+    subscription_id: int,
+    authorized: bool = Depends(check_admin)
+):
+    conn = get_conn()
+    subscription = conn.execute(
+        """
+        SELECT ps.*, m.name, m.group_name, m.code
+        FROM push_subscriptions ps
+        JOIN members m ON m.id = ps.member_id
+        WHERE ps.id = ?
+          AND ps.active = 1
+          AND m.active = 1
+        """,
+        (subscription_id,)
+    ).fetchone()
+    if not subscription:
+        conn.close()
+        return RedirectResponse("/admin?push_test_error=missing", status_code=303)
+
+    if endpoint_type(subscription["endpoint"]) != "fcm":
+        conn.close()
+        return RedirectResponse("/admin?push_test_error=not_fcm", status_code=303)
+
+    debug_payload = {
+        "title": "DEBUG Push",
+        "body": "FCM 201 received. Testing service worker display.",
+        "url": "/",
+    }
+    result = send_push_notification(
+        subscription,
+        debug_payload["title"],
+        debug_payload["body"],
+        debug_payload["url"],
+        payload_override=debug_payload,
+    )
+    if result["inactive"]:
+        deactivate_push_subscription(conn, subscription_id)
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        (
+            f"/admin?push_test=1"
+            f"&push_test_ok={1 if result['ok'] else 0}"
+            f"&push_test_type={quote(result['endpoint_type'])}"
+            f"&push_test_status={quote(str(result['status_code']))}"
+            f"&push_test_body={quote(str(result['response_body'])[:500])}"
+            f"&push_test_exception={quote(result['exception_class'])}"
+            f"&push_test_message={quote(result['exception_message'][:500])}"
+            f"&push_test_payload={quote(json.dumps(debug_payload, ensure_ascii=False))}"
             f"&push_test_vapid_warning={1 if result['vapid_warning'] else 0}"
         ),
         status_code=303

@@ -216,7 +216,7 @@ http://127.0.0.1:8000/admin
 - id
 - name
 - group_name（職種）
-- occupation_memo（職種メモ）
+- occupation_memo（メモ）
 - contact
 - code
 - active
@@ -547,9 +547,9 @@ CLOUDFLARED_TUNNEL_NAME=emergency
 - 管理画面にBasic認証、登録者削除、返信率表示、返信率リセット、並び替え機能を追加しました。
 - 登録者削除と利用者の登録解除は、応答履歴・Push購読・通知グループ所属を含めた完全削除方式に変更しました。
 - 管理画面の並び替えは、項目クリックで昇順・降順を切り替えられるようにしました。
-- 管理画面に職種メモ欄を追加しました。職種メモはCSVに保存され、result画面にも表示されます。
+- 管理画面にメモ欄を追加しました。メモはCSVに保存され、result画面にも表示されます。
 - 登録者一覧CSV・応答履歴CSVの出力、登録者CSV読み込み、24時間ごとのCSV自動書き出しに対応しました。
-- CSVには連絡先、職種メモ、通知グループを含められるようにしました。
+- CSVには連絡先、メモ、通知グループを含められるようにしました。
 - PWA対応として manifest、Service Worker、アイコン設定、ホーム画面追加案内を追加しました。
 - Web Push通知に対応し、VAPID鍵生成スクリプトと管理画面からのVAPID設定編集を追加しました。
 - 管理画面から一斉通知、選択した人だけ通知、応答がない人だけ通知、通知グループ通知を送れるようにしました。
@@ -563,3 +563,26 @@ CLOUDFLARED_TUNNEL_NAME=emergency
 - Cloudflare一時URLの表示、コピー、内部生成QRコード表示に対応しました。
 - `start.command` をCloudflare可変URLモードと固定URLモードの両方に対応させました。
 - Windows向けの `start.bat` を追加し、Windowsでも起動しやすくしました。
+
+---
+
+## Ver.1.3の変更点
+
+- Android端末でFCM送信がHTTP 201成功でも通知が表示されない問題を切り分けるため、管理画面にPushテストモードを追加しました。
+- Pushテストモードは `/admin/settings` からON/OFFできます。通常運用ではOFFにできます。
+- 管理画面のPush送信テストで、endpoint種別、HTTP status code、response body、例外種別、例外メッセージ、送信payloadを確認できるようにしました。
+- Android向けにFCM endpointだけへ送る「Android Pushデバッグ送信」を追加しました。
+- 通常のPush送信結果に、Apple / FCM / その他ごとの成功数・失敗数を表示するようにしました。
+- 404 / 410 の失効したPush購読は自動で inactive にするようにしました。
+- 403 の場合はVAPID鍵不整合の可能性として警告表示するようにしました。
+- Service Workerのpushイベント処理を堅牢化し、payloadが空、JSONでない、JSON parseに失敗した場合でも通知表示処理が落ちないようにしました。
+- Service Workerにバージョン情報を追加し、更新状態を確認できるようにしました。
+- 職員向け画面の起動時にService Workerを自動登録・自動更新するようにしました。失敗時は画面には大きく出さず、console.warnに留めます。
+- 「通知を許可」ボタン内に、Service Worker更新、version確認、Push購読取得、サーバ登録を内蔵しました。
+- Push登録時に、同じ利用者の古いsubscriptionをinactiveにしてから現在のsubscriptionを保存するようにしました。
+- Androidでホーム画面アイコン削除後に古い端末情報が残る場合に備え、初期画面に「端末内の登録情報を消去」を追加しました。
+- 職員向け画面からデバッグ用ボタンと詳細診断表示を削除し、本番向けにUIを整理しました。
+- 管理画面のPush送信前に「通知を送りますか？」の確認アラートを追加しました。
+- staff画面に戻るボタンを追加し、スマホで右側が見切れないよう横幅調整を行いました。
+- result画面は返信のあった人だけを表示し、登録者一覧と連絡先番号は表示しないようにしました。
+- 「職種メモ」の表示名を「メモ」に変更しました。CSV内部項目名 `occupation_memo` は互換性のため維持しています。

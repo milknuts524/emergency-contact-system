@@ -242,30 +242,6 @@
             display: none;
         }
 
-        .diagnostic-area {
-            margin-bottom: 20px;
-            padding: 16px;
-            border: 2px solid #d7dde5;
-            border-radius: 14px;
-            background: #ffffff;
-        }
-
-        .diagnostic-button {
-            min-height: 54px;
-            padding: 12px;
-            background: #374151;
-            color: #ffffff;
-            font-size: 18px;
-            box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
-        }
-
-        .diagnostic-message {
-            margin: 8px 0 0;
-            color: #52606d;
-            font-size: 15px;
-            font-weight: 700;
-        }
-
         .remove-button {
             min-height: 50px;
             padding: 12px;
@@ -307,13 +283,6 @@
                 通知を許可
             </button>
             <p id="push-subscribe-message" class="push-message"></p>
-        </section>
-
-        <section class="diagnostic-area" aria-label="通知診断">
-            <button id="local-notification-test-button" class="diagnostic-button" type="button">
-                端末通知テスト
-            </button>
-            <p id="local-notification-test-message" class="diagnostic-message"></p>
         </section>
 
         <section class="status-box" aria-label="現在の状態">
@@ -404,17 +373,78 @@
             return outputArray;
         }
 
+        const SERVICE_WORKER_URL = "/service-worker.js";
+
+        async function ensureServiceWorkerRegistration(options) {
+            const silent = options && options.silent;
+            const registration = await navigator.serviceWorker.register(SERVICE_WORKER_URL);
+            try {
+                await registration.update();
+            } catch (error) {
+                console.warn("Service Worker update failed", error);
+                if (!silent) {
+                    pushMessage.textContent = "Service Worker更新に失敗しましたが、登録処理を続行します: " + error.message;
+                }
+            }
+            return navigator.serviceWorker.ready;
+        }
+
         if ("serviceWorker" in navigator) {
             window.addEventListener("load", function () {
-                navigator.serviceWorker.register("/service-worker.js");
+                ensureServiceWorkerRegistration({ silent: true }).then(async function (registration) {
+                    const version = await getServiceWorkerVersion(registration);
+                    if (version === "未取得") {
+                        console.warn("Service Worker version could not be retrieved.");
+                    }
+                    await hidePushAreaIfSubscribed();
+                }).catch(function (error) {
+                    console.warn("Service Worker registration failed", error);
+                });
             });
         }
 
         const pushButton = document.getElementById("push-subscribe-button");
         const pushMessage = document.getElementById("push-subscribe-message");
         const pushArea = document.getElementById("push-area");
-        const localNotificationTestButton = document.getElementById("local-notification-test-button");
-        const localNotificationTestMessage = document.getElementById("local-notification-test-message");
+
+        function endpointType(endpoint) {
+            if (!endpoint) {
+                return "なし";
+            }
+            if (endpoint.includes("web.push.apple.com")) {
+                return "apple";
+            }
+            if (endpoint.includes("fcm.googleapis.com") || endpoint.includes("firebaseinstallations.googleapis.com")) {
+                return "fcm";
+            }
+            return "other";
+        }
+
+        async function getServiceWorkerVersion(registration) {
+            const worker = navigator.serviceWorker.controller;
+            if (!worker) {
+                return "未取得";
+            }
+
+            return new Promise(function (resolve) {
+                const timer = window.setTimeout(function () {
+                    navigator.serviceWorker.removeEventListener("message", onMessage);
+                    resolve("未取得");
+                }, 1200);
+
+                function onMessage(event) {
+                    if (!event.data || event.data.type !== "SERVICE_WORKER_VERSION") {
+                        return;
+                    }
+                    window.clearTimeout(timer);
+                    navigator.serviceWorker.removeEventListener("message", onMessage);
+                    resolve(event.data && event.data.version ? event.data.version : "未取得");
+                }
+
+                navigator.serviceWorker.addEventListener("message", onMessage);
+                worker.postMessage({ type: "GET_VERSION" });
+            });
+        }
 
         async function savePushSubscription(subscription) {
             return fetch("/user/{{ member['code'] }}/push-subscribe", {
@@ -437,15 +467,15 @@
                 if (subscription) {
                     const response = await savePushSubscription(subscription);
                     if (response.ok) {
-                        pushArea.classList.add("is-hidden");
+                        const version = await getServiceWorkerVersion(registration);
+                        pushButton.textContent = "通知を再登録";
+                        pushMessage.textContent = "通知登録済み / " + endpointType(subscription.endpoint) + " / SW " + version;
                     }
                 }
             } catch (error) {
                 console.warn("Push subscription check failed", error);
             }
         }
-
-        hidePushAreaIfSubscribed();
 
         pushButton.addEventListener("click", async function () {
             if (!vapidPublicKey) {
@@ -458,13 +488,21 @@
                 return;
             }
 
+            pushMessage.textContent = "Service Workerを確認しています。";
+            const registration = await ensureServiceWorkerRegistration({ silent: false });
+            const version = await getServiceWorkerVersion(registration);
+            if (version === "未取得") {
+                pushMessage.textContent = "Service Worker versionが未取得です。古いService Workerの可能性がありますが、登録処理を続行します。";
+            } else {
+                pushMessage.textContent = "Service Worker確認済み: " + version;
+            }
+
             const permission = await Notification.requestPermission();
             if (permission !== "granted") {
                 pushMessage.textContent = "通知が許可されませんでした。";
                 return;
             }
 
-            const registration = await navigator.serviceWorker.ready;
             let subscription = await registration.pushManager.getSubscription();
             if (!subscription) {
                 subscription = await registration.pushManager.subscribe({
@@ -476,47 +514,15 @@
             const response = await savePushSubscription(subscription);
 
             if (response.ok) {
-                pushMessage.textContent = "通知登録済み";
+                pushMessage.textContent =
+                    "通知登録完了 / endpoint種別: " +
+                    endpointType(subscription.endpoint) +
+                    " / service-worker version: " +
+                    version +
+                    " / テスト通知を送信してください";
                 pushButton.disabled = true;
-                window.setTimeout(function () {
-                    pushArea.classList.add("is-hidden");
-                }, 900);
             } else {
                 pushMessage.textContent = "通知登録に失敗しました。";
-            }
-        });
-
-        localNotificationTestButton.addEventListener("click", async function () {
-            if (!("Notification" in window) || !("serviceWorker" in navigator)) {
-                localNotificationTestMessage.textContent = "この端末またはブラウザは通知に対応していません。";
-                return;
-            }
-
-            const permission = await Notification.requestPermission();
-            if (permission !== "granted") {
-                localNotificationTestMessage.textContent = "通知が許可されていません。";
-                return;
-            }
-
-            try {
-                const registration = await navigator.serviceWorker.ready;
-                await registration.update();
-
-                if (registration.active) {
-                    registration.active.postMessage({ type: "SHOW_TEST_NOTIFICATION" });
-                    localNotificationTestMessage.textContent = "端末通知テストを送信しました。通知が表示されるか確認してください。";
-                } else {
-                    await registration.showNotification("端末通知テスト", {
-                        body: "この通知が表示されれば、端末の通知表示は有効です。",
-                        icon: "/static/icons/icon.svg",
-                        badge: "/static/icons/maskable-icon.svg",
-                        data: { url: "/" }
-                    });
-                    localNotificationTestMessage.textContent = "端末通知テストを送信しました。通知が表示されるか確認してください。";
-                }
-            } catch (error) {
-                console.warn("Local notification test failed", error);
-                localNotificationTestMessage.textContent = "端末通知テストに失敗しました。Android側の通知設定を確認してください。";
             }
         });
     </script>

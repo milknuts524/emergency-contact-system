@@ -12,6 +12,10 @@
     <link rel="apple-touch-icon" href="{{ app_icon_path() }}">
     <title>職員向けお知らせ</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
             background: #f4f6f8;
@@ -25,6 +29,7 @@
             max-width: 760px;
             margin: 0 auto;
             padding: max(20px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
+            overflow-x: hidden;
         }
         h1 {
             margin: 0 0 18px;
@@ -60,6 +65,18 @@
         }
         .body {
             margin-top: 12px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+        .body img,
+        .body video,
+        .body iframe,
+        .body table {
+            max-width: 100%;
+        }
+        .body pre {
+            max-width: 100%;
+            overflow-x: auto;
         }
         .empty {
             padding: 18px;

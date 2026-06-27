@@ -1,4 +1,6 @@
-const CACHE_NAME = "emergency-contact-v4";
+const SW_VERSION = "2026-06-27-debug-1";
+const CACHE_NAME = "emergency-contact-v6";
+const DEBUG_PUSH = true;
 const APP_SHELL = [
   "/",
   "/static/manifest.json",
@@ -44,11 +46,20 @@ self.addEventListener("push", (event) => {
   };
 
   const showPushNotification = async () => {
+    let rawText = "";
     let data = {};
 
     try {
       if (event.data) {
-        data = event.data.json();
+        rawText = await event.data.text();
+      }
+    } catch (error) {
+      rawText = "";
+    }
+
+    try {
+      if (rawText) {
+        data = JSON.parse(rawText);
       }
     } catch (error) {
       data = {};
@@ -58,8 +69,12 @@ self.addEventListener("push", (event) => {
       data = {};
     }
 
-    const title = String(data.title || "").trim() || fallback.title;
-    const body = String(data.body || "").trim() || fallback.body;
+    const title = DEBUG_PUSH
+      ? "DEBUG Push Received"
+      : String(data.title || "").trim() || fallback.title;
+    const body = DEBUG_PUSH
+      ? `SW ${SW_VERSION} received push`
+      : String(data.body || rawText || "").trim() || fallback.body;
     const url = String(data.url || "").trim() || fallback.url;
 
     return self.registration.showNotification(title, {
@@ -74,12 +89,25 @@ self.addEventListener("push", (event) => {
 });
 
 self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "GET_VERSION") {
+    if (event.source) {
+      event.source.postMessage({
+        type: "SERVICE_WORKER_VERSION",
+        version: SW_VERSION
+      });
+    }
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({ version: SW_VERSION });
+    }
+    return;
+  }
+
   if (!event.data || event.data.type !== "SHOW_TEST_NOTIFICATION") {
     return;
   }
 
-  const notificationPromise = self.registration.showNotification("端末通知テスト", {
-    body: "この通知が表示されれば、端末の通知表示は有効です。",
+  const notificationPromise = self.registration.showNotification("Push診断通知", {
+    body: `Service Worker showNotification OK\nSW ${SW_VERSION}`,
     icon: "/static/icons/icon.svg",
     badge: "/static/icons/maskable-icon.svg",
     data: { url: "/" }
