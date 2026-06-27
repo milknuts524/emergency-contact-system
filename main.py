@@ -209,6 +209,24 @@ def get_user_viewer_data():
         return None
 
 
+def get_user_phonebook_data():
+    if not is_plugin_enabled("phonebook"):
+        return None
+    try:
+        phonebook_service = importlib.import_module("plugins.phonebook.service")
+        conn = get_conn()
+        try:
+            phonebook_service.init_db(conn)
+            return {
+                "groups": phonebook_service.grouped_contacts(conn),
+            }
+        finally:
+            conn.close()
+    except Exception as exc:
+        print(f"Phonebook plugin data failed: {exc}")
+        return None
+
+
 ENABLED_PLUGINS = parse_enabled_plugins(os.getenv("ENABLED_PLUGINS", ""))
 LOADED_PLUGINS = []
 
@@ -1511,6 +1529,7 @@ def user_page(request: Request, code: str):
     disaster_mode = get_disaster_mode(conn)
     survey_items = get_member_plugin_surveys(conn, member)
     calendar_enabled = is_plugin_enabled("calendar")
+    phonebook_enabled = is_plugin_enabled("phonebook")
     calendar_data = get_user_calendar_data()
     viewer_data = get_user_viewer_data()
     now = datetime.now().isoformat(timespec="minutes").replace("T", " ")
@@ -1539,6 +1558,7 @@ def user_page(request: Request, code: str):
             "disaster_mode": disaster_mode,
             "survey_items": survey_items,
             "calendar_enabled": calendar_enabled,
+            "phonebook_enabled": phonebook_enabled,
             "calendar_data": calendar_data,
             "viewer_data": viewer_data,
             "announcement_count": announcement_count,
@@ -2266,6 +2286,10 @@ def admin_send_push(
     authorized: bool = Depends(check_admin)
 ):
     conn = get_conn()
+    if get_disaster_mode(conn) != "disaster":
+        conn.close()
+        return RedirectResponse("/admin?push_error=normal_mode", status_code=303)
+
     target_label = "全員"
     target_member_count = 0
 

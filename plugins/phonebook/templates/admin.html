@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>電話帳 管理</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #f4f6f8; color: #1f2933; font-family: sans-serif; font-size: 18px; }
+        h1, h2 { margin-top: 0; }
+        .card { margin-bottom: 18px; padding: 16px; border: 2px solid #d7dde5; border-radius: 12px; background: #fff; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+        label { display: block; margin-bottom: 10px; font-weight: bold; }
+        input, select, textarea { width: 100%; margin-top: 6px; padding: 10px; border: 2px solid #9aa5b1; border-radius: 8px; box-sizing: border-box; font: inherit; }
+        textarea { min-height: 82px; }
+        .check { width: auto; }
+        .button, button { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 14px; border: 0; border-radius: 8px; background: #1f4f82; color: #fff; font: inherit; font-weight: bold; text-decoration: none; cursor: pointer; }
+        .primary { background: #0f766e; }
+        .danger { background: #c62828; }
+        .notice { margin-bottom: 16px; padding: 12px; border-radius: 8px; background: #e8f5e9; color: #1b5e20; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; background: #fff; }
+        th, td { padding: 10px; border-bottom: 1px solid #ccd5df; text-align: left; vertical-align: top; }
+        .inline-form { display: inline; }
+        .contact-form { margin: 0; padding: 12px 0; }
+        .hidden-file-input { display: none; }
+        .contact-list .contact-form { border-top: 1px solid #ccd5df; }
+        .contact-list .contact-form:first-of-type { border-top: 0; }
+        .contact-list .grid { grid-template-columns: 1fr; gap: 8px; }
+        .contact-list label:not(.check-label) {
+            display: grid;
+            grid-template-columns: 6.5em minmax(0, 1fr);
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+        .contact-list label:not(.check-label) input,
+        .contact-list label:not(.check-label) select,
+        .contact-list label:not(.check-label) textarea {
+            margin-top: 0;
+        }
+        .small-text { color: #52606d; font-size: 15px; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>電話帳 管理</h1>
+
+    {% if request.query_params.get("saved") == "1" %}
+        <div class="notice">保存しました。</div>
+    {% endif %}
+    {% if request.query_params.get("imported") is not none %}
+        <div class="notice">
+            CSV取り込み結果：
+            追加 {{ request.query_params.get("imported") }} 件、
+            スキップ {{ request.query_params.get("skipped") }} 件
+        </div>
+    {% endif %}
+
+    <div class="toolbar">
+        <a class="button" href="/admin">管理画面へ戻る</a>
+        <a class="button" href="/phonebook">職員向け画面を開く</a>
+        <a class="button" href="/admin/phonebook/export.csv">電話帳CSV出力</a>
+        <form id="phonebook-csv-import-form" method="post" action="/admin/phonebook/import.csv" enctype="multipart/form-data">
+            <input id="phonebook-csv-file-input" class="hidden-file-input" type="file" name="csv_file" accept=".csv,text/csv" required>
+            <button type="button" id="phonebook-csv-import-button">CSVファイルを選択</button>
+        </form>
+    </div>
+
+    <section class="card contact-list">
+        <h2>連絡先一覧</h2>
+        {% if contacts %}
+            {% for contact in contacts %}
+                <form class="contact-form" method="post" action="/admin/phonebook/contacts/{{ contact['id'] }}/update">
+                    <div class="grid">
+                        <label>
+                            カテゴリ
+                            <select name="category_id">
+                                <option value="0">未分類</option>
+                                {% for category in categories %}
+                                    <option value="{{ category['id'] }}" {% if contact['category_id'] == category['id'] %}selected{% endif %}>{{ category["name"] }}</option>
+                                {% endfor %}
+                            </select>
+                        </label>
+                        <label>
+                            名称：
+                            <input type="text" name="name" value="{{ contact['name'] }}" required>
+                        </label>
+                        <label>
+                            組織名：
+                            <input type="text" name="organization" value="{{ contact['organization'] or '' }}">
+                        </label>
+                        <label>
+                            電話番号：
+                            <input type="tel" name="phone" value="{{ contact['phone'] or '' }}">
+                        </label>
+                        <label>
+                            電話メモ：
+                            <input type="text" name="phone_note" value="{{ contact['phone_note'] or '' }}">
+                        </label>
+                        <label>
+                            電話番号2：
+                            <input type="tel" name="phone2" value="{{ contact['phone2'] or '' }}">
+                        </label>
+                        <label>
+                            電話メモ2：
+                            <input type="text" name="phone2_note" value="{{ contact['phone2_note'] or '' }}">
+                        </label>
+                        <label>
+                            メール：
+                            <input type="email" name="email" value="{{ contact['email'] or '' }}">
+                        </label>
+                        <label>
+                            Web：
+                            <input type="url" name="url" value="{{ contact['url'] or '' }}">
+                        </label>
+                        <label>
+                            住所：
+                            <input type="text" name="address" value="{{ contact['address'] or '' }}">
+                        </label>
+                        <label>
+                            並び順：
+                            <input type="number" name="sort_order" value="{{ contact['sort_order'] }}">
+                        </label>
+                        <label class="check-label">
+                            <input class="check" type="checkbox" name="is_pinned" value="1" {% if contact["is_pinned"] == 1 %}checked{% endif %}>
+                            ピン留め
+                        </label>
+                        <label class="check-label">
+                            <input class="check" type="checkbox" name="is_active" value="1" {% if contact["is_active"] == 1 %}checked{% endif %}>
+                            表示する
+                        </label>
+                    </div>
+                    <label>
+                        メモ：
+                        <textarea name="note">{{ contact["note"] or "" }}</textarea>
+                    </label>
+                    <p class="small-text">カテゴリ：{{ contact["category_name"] or "未分類" }}</p>
+                    <button class="primary" type="submit">保存</button>
+                </form>
+            {% endfor %}
+        {% else %}
+            <p>連絡先はまだありません。</p>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <h2>連絡先追加</h2>
+        <form method="post" action="/admin/phonebook/contacts">
+            <div class="grid">
+                <label>
+                    カテゴリ
+                    <select name="category_id">
+                        <option value="0">未分類</option>
+                        {% for category in categories %}
+                            <option value="{{ category['id'] }}">{{ category["name"] }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>
+                    名称
+                    <input type="text" name="name" required>
+                </label>
+                <label>
+                    組織名
+                    <input type="text" name="organization">
+                </label>
+                <label>
+                    電話番号
+                    <input type="tel" name="phone">
+                </label>
+                <label>
+                    電話メモ
+                    <input type="text" name="phone_note" placeholder="夜間、代表、直通など">
+                </label>
+                <label>
+                    電話番号2
+                    <input type="tel" name="phone2">
+                </label>
+                <label>
+                    電話メモ2
+                    <input type="text" name="phone2_note" placeholder="夜間、代表、直通など">
+                </label>
+                <label>
+                    メール
+                    <input type="email" name="email">
+                </label>
+                <label>
+                    Web
+                    <input type="url" name="url" placeholder="https://example.com">
+                </label>
+                <label>
+                    住所
+                    <input type="text" name="address">
+                </label>
+                <label>
+                    並び順
+                    <input type="number" name="sort_order" value="0">
+                </label>
+                <label>
+                    <input class="check" type="checkbox" name="is_pinned" value="1">
+                    ピン留め
+                </label>
+                <label>
+                    <input class="check" type="checkbox" name="is_active" value="1" checked>
+                    表示する
+                </label>
+            </div>
+            <label>
+                メモ
+                <textarea name="note"></textarea>
+            </label>
+            <button class="primary" type="submit">連絡先を追加</button>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2>カテゴリ追加</h2>
+        <form method="post" action="/admin/phonebook/categories">
+            <div class="grid">
+                <label>
+                    カテゴリ名
+                    <input type="text" name="name" required>
+                </label>
+                <label>
+                    並び順
+                    <input type="number" name="sort_order" value="0">
+                </label>
+                <label>
+                    <input class="check" type="checkbox" name="is_active" value="1" checked>
+                    表示する
+                </label>
+            </div>
+            <button class="primary" type="submit">カテゴリを追加</button>
+        </form>
+    </section>
+    <script>
+        const csvImportButton = document.getElementById("phonebook-csv-import-button");
+        const csvFileInput = document.getElementById("phonebook-csv-file-input");
+        const csvImportForm = document.getElementById("phonebook-csv-import-form");
+
+        if (csvImportButton && csvFileInput && csvImportForm) {
+            csvImportButton.addEventListener("click", function () {
+                csvFileInput.click();
+            });
+
+            csvFileInput.addEventListener("change", function () {
+                if (csvFileInput.files.length > 0) {
+                    csvImportForm.submit();
+                }
+            });
+        }
+    </script>
+</body>
+</html>

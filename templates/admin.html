@@ -282,6 +282,24 @@
         .push-box textarea {
             min-height: 80px;
         }
+        .push-disabled-message {
+            margin: 10px 0 14px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #fff3cd;
+            color: #7c2d12;
+            font-weight: bold;
+        }
+        .push-box.is-disabled {
+            background: #f3f4f6;
+        }
+        .push-box.is-disabled input,
+        .push-box.is-disabled select,
+        .push-box.is-disabled textarea,
+        .push-box.is-disabled button {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
         .push-target-actions {
             display: flex;
             flex-wrap: wrap;
@@ -609,6 +627,9 @@
     {% if request.query_params.get("push_error") == "target" %}
         <div class="error">送信対象の通知グループが見つかりません。</div>
     {% endif %}
+    {% if request.query_params.get("push_error") == "normal_mode" %}
+        <div class="error">通常モードでは安否確認用のPush通知は送信できません。災害モードに切り替えてから送信してください。</div>
+    {% endif %}
 
     {% if request.query_params.get("responses_reset") == "1" %}
         <div class="notice">返信をリセットしました。全員の状態を未返信として表示します。</div>
@@ -717,16 +738,22 @@
         {% endif %}
     </div>
 
-    <div class="push-box">
+    <div class="push-box {% if disaster_mode != 'disaster' %}is-disabled{% endif %}">
         <div class="section-heading-row">
             <h2>Push通知</h2>
             <a class="action-button" href="/admin/groups">通知グループ管理</a>
             <a class="action-button" href="/admin/push-templates">Push定型文管理</a>
         </div>
+        {% if disaster_mode != "disaster" %}
+            <div class="push-disabled-message">
+                通常モードでは安否確認用のPush通知は送信できません。送信する場合は災害モードに切り替えてください。
+                お知らせ管理からのお知らせ通知は通常モードでも送信できます。
+            </div>
+        {% endif %}
         <form id="push-send-form" method="post" action="/admin/push/send">
             <label>
                 定型文<br>
-                <select id="push-template-select">
+                <select id="push-template-select" {% if disaster_mode != "disaster" %}disabled{% endif %}>
                     <option value="">選択しない</option>
                     {% for template in push_templates %}
                         <option
@@ -741,20 +768,20 @@
             </label>
             <label>
                 タイトル<br>
-                <input id="push-title-input" type="text" name="title" value="緊急連絡" required>
+                <input id="push-title-input" type="text" name="title" value="緊急連絡" required {% if disaster_mode != "disaster" %}disabled{% endif %}>
             </label>
             <label>
                 本文<br>
-                <textarea id="push-body-input" name="body" required>安否確認をお願いします。</textarea>
+                <textarea id="push-body-input" name="body" required {% if disaster_mode != "disaster" %}disabled{% endif %}>安否確認をお願いします。</textarea>
             </label>
-            <button class="push-submit" type="submit" name="target_mode" value="all">一斉通知送信</button>
+            <button class="push-submit" type="submit" name="target_mode" value="all" {% if disaster_mode != "disaster" %}disabled{% endif %}>一斉通知送信</button>
 
             <div class="push-target-actions">
-                <button class="push-secondary" type="submit" name="target_mode" value="selected">選択した人だけ通知</button>
-                <button class="push-secondary warning" type="submit" name="target_mode" value="unanswered">応答がない人だけ通知</button>
+                <button class="push-secondary" type="submit" name="target_mode" value="selected" {% if disaster_mode != "disaster" %}disabled{% endif %}>選択した人だけ通知</button>
+                <button class="push-secondary warning" type="submit" name="target_mode" value="unanswered" {% if disaster_mode != "disaster" %}disabled{% endif %}>応答がない人だけ通知</button>
                 <label>
                     通知グループ<br>
-                    <select name="target_group">
+                    <select name="target_group" {% if disaster_mode != "disaster" %}disabled{% endif %}>
                         {% for group in notification_groups %}
                             {% if group["name"] != "全員" %}
                                 <option value="{{ group['id'] }}">{{ group["name"] }}</option>
@@ -762,7 +789,7 @@
                         {% endfor %}
                     </select>
                 </label>
-                <button class="push-secondary" type="submit" name="target_mode" value="group">グループ通知</button>
+                <button class="push-secondary" type="submit" name="target_mode" value="group" {% if disaster_mode != "disaster" %}disabled{% endif %}>グループ通知</button>
             </div>
         </form>
     </div>

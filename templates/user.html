@@ -565,6 +565,9 @@
                     <span class="notice-badge" aria-label="お知らせ {{ announcement_count }} 件">{{ announcement_count }}</span>
                 {% endif %}
             </a>
+            {% if phonebook_enabled %}
+                <a class="result-link" href="/phonebook">電話帳</a>
+            {% endif %}
             {% if viewer_data and viewer_data["items"] %}
                 <section class="viewer-area" aria-label="{{ viewer_data['display_name'] }}">
                     <p class="viewer-title">{{ viewer_data["display_name"] }}</p>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>電話帳</title>
+    <style>
+        body { margin: 0; padding: 18px; background: #f4f6f8; color: #1f2933; font-family: sans-serif; font-size: 18px; }
+        main { max-width: 640px; margin: 0 auto; }
+        .back { display: inline-flex; align-items: center; min-height: 44px; margin-bottom: 12px; padding: 0 12px; border-radius: 8px; background: #1f4f82; color: #fff; font-weight: bold; text-decoration: none; }
+        input, select { width: 100%; margin: 8px 0 14px; padding: 12px; border: 2px solid #9aa5b1; border-radius: 10px; font: inherit; box-sizing: border-box; }
+        .category { margin-top: 18px; }
+        .category h2 { margin: 0 0 10px; font-size: 22px; }
+        .contact-card { margin-bottom: 12px; padding: 14px; border: 2px solid #d7dde5; border-radius: 12px; background: #fff; }
+        .contact-card.is-pinned { border-color: #c91f1f; background: #fff7f7; }
+        .pinned-area { margin-top: 14px; padding: 14px; border: 2px solid #f4b4b4; border-radius: 14px; background: #fffafa; }
+        .pinned-area h2 { margin: 0 0 10px; color: #991b1b; font-size: 22px; }
+        .contact-title { margin: 0; font-size: 21px; font-weight: 900; }
+        .contact-meta, .contact-note { margin: 5px 0 0; color: #52606d; font-size: 16px; font-weight: bold; }
+        .contact-line { margin: 8px 0 0; font-weight: bold; }
+        .contact-line a { color: #0f766e; font-size: 21px; text-decoration: none; }
+        .contact-line.email a { color: #1f4f82; font-size: 17px; overflow-wrap: anywhere; }
+        .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+        .action { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 13px; border-radius: 8px; background: #1f4f82; color: #fff; font-weight: bold; text-decoration: none; }
+        .map { background: #7c3aed; }
+        .empty { padding: 16px; border-radius: 12px; background: #fff; color: #52606d; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <main>
+        <a class="back" href="/admin">戻る</a>
+        <h1>電話帳</h1>
+        <input id="phonebook-search" type="search" placeholder="検索">
+        <select id="phonebook-category-filter" aria-label="カテゴリで絞り込み">
+            <option value="">すべてのカテゴリ</option>
+            {% for category in categories %}
+                <option value="{{ category['id'] }}">{{ category["name"] }}</option>
+            {% endfor %}
+            <option value="none">未分類</option>
+        </select>
+
+        {% if pinned_contacts %}
+            <section class="pinned-area" data-category-section="pinned">
+                <h2>ピン留め</h2>
+                {% for contact in pinned_contacts %}
+                    <article class="contact-card is-pinned" data-search="{{ contact['search_text'] }}" data-category="{{ contact['category_id'] or 'none' }}">
+                        <p class="contact-title">{{ contact["name"] }}</p>
+                        {% if contact["organization"] %}
+                            <p class="contact-meta">{{ contact["organization"] }}</p>
+                        {% endif %}
+                        {% if contact["phone"] %}
+                            <p class="contact-line">
+                                {% if contact["phone_note"] %}{{ contact["phone_note"] }}：{% endif %}
+                                <a href="tel:{{ contact['phone'] }}">{{ contact["phone"] }}</a>
+                            </p>
+                        {% endif %}
+                        {% if contact["phone2"] %}
+                            <p class="contact-line">
+                                {% if contact["phone2_note"] %}{{ contact["phone2_note"] }}：{% endif %}
+                                <a href="tel:{{ contact['phone2'] }}">{{ contact["phone2"] }}</a>
+                            </p>
+                        {% endif %}
+                        {% if contact["email"] %}
+                            <p class="contact-line email"><a href="mailto:{{ contact['email'] }}">{{ contact["email"] }}</a></p>
+                        {% endif %}
+                        {% if contact["address"] %}
+                            <p class="contact-meta">{{ contact["address"] }}</p>
+                        {% endif %}
+                        {% if contact["note"] %}
+                            <p class="contact-note">{{ contact["note"] }}</p>
+                        {% endif %}
+                        <div class="actions">
+                            {% if contact["url"] %}<a class="action" href="{{ contact['url'] }}" target="_blank" rel="noopener">Web</a>{% endif %}
+                            {% if contact["map_url"] %}<a class="action map" href="{{ contact['map_url'] }}" target="_blank" rel="noopener">地図</a>{% endif %}
+                        </div>
+                    </article>
+                {% endfor %}
+            </section>
+        {% endif %}
+
+        {% if groups or pinned_contacts %}
+            {% for group in groups %}
+                <section class="category" data-category-section="{{ group['category']['id'] or 'none' }}">
+                    <h2>{{ group["category"]["name"] }}</h2>
+                    {% for contact in group["contacts"] %}
+                        <article class="contact-card" data-search="{{ contact['search_text'] }}" data-category="{{ contact['category_id'] or 'none' }}">
+                            <p class="contact-title">{{ contact["name"] }}</p>
+                            {% if contact["organization"] %}
+                                <p class="contact-meta">{{ contact["organization"] }}</p>
+                            {% endif %}
+                            {% if contact["phone"] %}
+                                <p class="contact-line">
+                                    {% if contact["phone_note"] %}{{ contact["phone_note"] }}：{% endif %}
+                                    <a href="tel:{{ contact['phone'] }}">{{ contact["phone"] }}</a>
+                                </p>
+                            {% endif %}
+                            {% if contact["phone2"] %}
+                                <p class="contact-line">
+                                    {% if contact["phone2_note"] %}{{ contact["phone2_note"] }}：{% endif %}
+                                    <a href="tel:{{ contact['phone2'] }}">{{ contact["phone2"] }}</a>
+                                </p>
+                            {% endif %}
+                            {% if contact["email"] %}
+                                <p class="contact-line email"><a href="mailto:{{ contact['email'] }}">{{ contact["email"] }}</a></p>
+                            {% endif %}
+                            {% if contact["address"] %}
+                                <p class="contact-meta">{{ contact["address"] }}</p>
+                            {% endif %}
+                            {% if contact["note"] %}
+                                <p class="contact-note">{{ contact["note"] }}</p>
+                            {% endif %}
+                            <div class="actions">
+                                {% if contact["url"] %}<a class="action" href="{{ contact['url'] }}" target="_blank" rel="noopener">Web</a>{% endif %}
+                                {% if contact["map_url"] %}<a class="action map" href="{{ contact['map_url'] }}" target="_blank" rel="noopener">地図</a>{% endif %}
+                            </div>
+                        </article>
+                    {% endfor %}
+                </section>
+            {% endfor %}
+        {% else %}
+            <p class="empty">電話帳はまだ登録されていません。</p>
+        {% endif %}
+    </main>
+    <script>
+        const searchInput = document.getElementById("phonebook-search");
+        const categoryFilter = document.getElementById("phonebook-category-filter");
+        const cards = Array.from(document.querySelectorAll(".contact-card"));
+        const sections = Array.from(document.querySelectorAll("[data-category-section]"));
+
+        function filterPhonebook() {
+            const query = searchInput ? searchInput.value.trim().toLowerCase() : "";
+            const category = categoryFilter ? categoryFilter.value : "";
+            cards.forEach(function (card) {
+                const matchesText = !query || card.dataset.search.includes(query);
+                const matchesCategory = !category || card.dataset.category === category;
+                card.style.display = matchesText && matchesCategory ? "" : "none";
+            });
+            sections.forEach(function (section) {
+                const visibleCards = Array.from(section.querySelectorAll(".contact-card")).filter(function (card) {
+                    return card.style.display !== "none";
+                });
+                section.style.display = visibleCards.length > 0 ? "" : "none";
+            });
+        }
+
+        if (searchInput) {
+            searchInput.addEventListener("input", filterPhonebook);
+        }
+        if (categoryFilter) {
+            categoryFilter.addEventListener("change", filterPhonebook);
+        }
+    </script>
+</body>
+</html>
