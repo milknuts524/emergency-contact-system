@@ -6,3 +6,4 @@ pywebpush
 cryptography
 python-dotenv
 qrcode[pil]
+markdown

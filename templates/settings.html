@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#c91f1f">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Emergency">
+    <meta name="apple-mobile-web-app-title" content="{{ app_name() }}">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/static/icons/icon.svg">
+    <link rel="icon" href="{{ app_icon_path() }}">
+    <link rel="apple-touch-icon" href="{{ app_icon_path() }}">
     <title>設定</title>
     <style>
         body {
@@ -69,6 +69,12 @@
         textarea:focus {
             outline: 4px solid #b8d7ff;
             border-color: #2f80ed;
+        }
+
+        input[type="checkbox"],
+        input[type="radio"] {
+            width: auto;
+            margin-right: 8px;
         }
 
         .field {
@@ -144,6 +150,53 @@
         {% if request.query_params.get("status_label_error") == "empty" %}
             <div class="notice">状態ボタン文言は空欄にできません。</div>
         {% endif %}
+        {% if request.query_params.get("app_saved") == "1" %}
+            <div class="notice">アプリ表示設定を保存しました。</div>
+        {% endif %}
+        {% if request.query_params.get("app_error") == "icon" %}
+            <div class="notice">アイコンは SVG / PNG / JPG を指定してください。</div>
+        {% endif %}
+        {% if request.query_params.get("auto_csv_saved") == "1" %}
+            <div class="notice">CSV自動書き出し設定を保存しました。</div>
+        {% endif %}
+
+        <form class="settings-card" method="post" action="/admin/settings/app" enctype="multipart/form-data">
+            <h2>アプリ表示設定</h2>
+            <div class="field">
+                <label>
+                    アプリ名
+                    <input type="text" name="app_name" value="{{ app_settings['app_name'] }}" required>
+                </label>
+            </div>
+            <div class="field">
+                <label>
+                    短いアプリ名
+                    <input type="text" name="app_short_name" value="{{ app_settings['app_short_name'] }}" required>
+                </label>
+                <p class="help">ホーム画面やPWAの短縮表示に使います。</p>
+            </div>
+            <div class="field">
+                <label>
+                    アイコン
+                    <input type="file" name="app_icon" accept=".svg,.png,.jpg,.jpeg,image/svg+xml,image/png,image/jpeg">
+                </label>
+                <p class="help">現在のアイコン：{{ app_settings['app_icon_path'] }}</p>
+                <p class="help">変更後は、端末側でホーム画面追加をやり直すまで古いアイコンが残る場合があります。</p>
+            </div>
+            <button type="submit">アプリ表示設定を保存</button>
+        </form>
+
+        <form class="settings-card" method="post" action="/admin/settings/auto-csv">
+            <h2>CSV自動書き出し</h2>
+            <label>
+                <input type="checkbox" name="auto_csv_export_enabled" value="1"
+                       {% if app_settings['auto_csv_export_enabled'] == '1' %}checked{% endif %}>
+                24時間ごとにCSVを自動で書き出す
+            </label>
+            <p class="help">保存先：auto_exports/</p>
+            <p class="help">最終書き出し：{{ app_settings['auto_csv_export_last_at'] or "未実行" }}</p>
+            <button type="submit">CSV自動書き出し設定を保存</button>
+        </form>
 
         <form class="settings-card" method="post" action="/admin/settings/occupations">
             <label>

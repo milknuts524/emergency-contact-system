@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#c91f1f">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Emergency">
+    <meta name="apple-mobile-web-app-title" content="{{ app_name() }}">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/static/icons/icon.svg">
-    <title>緊急安否確認システム</title>
+    <link rel="icon" href="{{ app_icon_path() }}">
+    <link rel="apple-touch-icon" href="{{ app_icon_path() }}">
+    <title>{{ app_name() }}</title>
     <style>
         * {
             box-sizing: border-box;
@@ -121,6 +121,7 @@
 
         .main-button:active,
         .memo-button:active,
+        .result-link:active,
         .remove-button:active {
             transform: translateY(2px);
             box-shadow: none;
@@ -180,6 +181,24 @@
             font-size: 22px;
             line-height: 1.25;
             box-shadow: 0 4px 0 rgba(0, 0, 0, 0.16);
+        }
+
+        .result-link {
+            display: block;
+            width: 100%;
+            min-height: 58px;
+            margin-top: 16px;
+            padding: 14px 12px;
+            border-radius: 12px;
+            background: #1f4f82;
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: 800;
+            line-height: 1.4;
+            text-align: center;
+            text-decoration: none;
+            box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
+            box-sizing: border-box;
         }
 
         .remove-area {
@@ -255,7 +274,7 @@
 <body>
     <div id="sent-toast" class="sent-toast" role="status" aria-live="polite">通知完了</div>
     <main>
-        <h1>緊急安否確認システム</h1>
+        <h1>{{ app_name() }}</h1>
         <p class="person">{{ member["name"] }} さん</p>
 
         <section id="push-area" class="push-area" aria-label="通知設定">
@@ -312,6 +331,8 @@
                     メモ送信
                 </button>
             </form>
+            <a class="result-link" href="/result">結果を見る</a>
+            <a class="result-link" href="/staff">お知らせ</a>
         </section>
 
         <section class="remove-area" aria-label="登録解除">

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#c91f1f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="{{ app_name() }}">
+    <link rel="manifest" href="/static/manifest.json">
+    <link rel="icon" href="{{ app_icon_path() }}">
+    <link rel="apple-touch-icon" href="{{ app_icon_path() }}">
+    <title>通知グループ</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f4f6f8;
+            color: #1f2933;
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", sans-serif;
+            font-size: 18px;
+            line-height: 1.5;
+        }
+        main {
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        .notice,
+        .error {
+            margin-bottom: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .notice {
+            background: #e8f5e9;
+            color: #1b5e20;
+        }
+        .error {
+            background: #ffebee;
+            color: #b71c1c;
+        }
+        .card {
+            margin-bottom: 18px;
+            padding: 18px;
+            border: 2px solid #d7dde5;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+        label {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: 800;
+        }
+        input[type="text"],
+        textarea {
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px;
+            border: 2px solid #9aa5b1;
+            border-radius: 8px;
+            font: inherit;
+            box-sizing: border-box;
+        }
+        textarea {
+            min-height: 72px;
+        }
+        button,
+        .button-link {
+            display: inline-block;
+            min-height: 44px;
+            padding: 10px 14px;
+            border: 0;
+            border-radius: 8px;
+            background: #1f4f82;
+            color: #ffffff;
+            font: inherit;
+            font-weight: 800;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .danger {
+            background: #666;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #ffffff;
+        }
+        th,
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #ccd5df;
+            text-align: left;
+            vertical-align: top;
+        }
+        .row-form {
+            display: grid;
+            grid-template-columns: minmax(140px, 1fr) minmax(180px, 2fr) auto auto;
+            gap: 8px;
+            align-items: center;
+        }
+        .back-link {
+            color: #1f4f82;
+            font-weight: 800;
+        }
+        @media (max-width: 760px) {
+            .row-form {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>通知グループ</h1>
+
+        {% if request.query_params.get("saved") == "1" %}
+            <div class="notice">保存しました。</div>
+        {% endif %}
+        {% if request.query_params.get("error") == "empty" %}
+            <div class="error">グループ名は空欄にできません。</div>
+        {% elif request.query_params.get("error") == "duplicate" %}
+            <div class="error">同じ名前の通知グループが既にあります。</div>
+        {% endif %}
+
+        <section class="card">
+            <h2>新規グループ作成</h2>
+            <form method="post" action="/admin/groups/create">
+                <label>
+                    グループ名
+                    <input type="text" name="name" required>
+                </label>
+                <label>
+                    説明
+                    <textarea name="description"></textarea>
+                </label>
+                <button type="submit">作成</button>
+            </form>
+        </section>
+
+        <section class="card">
+            <h2>通知グループ一覧</h2>
+            <p>「全員」は特別扱いです。所属登録せず、送信時に active=1 の全登録者を対象にします。</p>
+            <table>
+                <tr>
+                    <th>グループ</th>
+                    <th>説明</th>
+                    <th>有効</th>
+                    <th>操作</th>
+                </tr>
+                {% for group in groups %}
+                    <tr>
+                        <td colspan="4">
+                            <form class="row-form" method="post" action="/admin/groups/{{ group['id'] }}/update">
+                                <input type="text" name="name" value="{{ group['name'] }}" {% if group['name'] == '全員' %}readonly{% endif %} required>
+                                <input type="text" name="description" value="{{ group['description'] or '' }}">
+                                <label>
+                                    <input type="checkbox" name="active" value="1" {% if group['active'] == 1 %}checked{% endif %} {% if group['name'] == '全員' %}disabled{% endif %}>
+                                    有効
+                                </label>
+                                <button type="submit">保存</button>
+                            </form>
+                            {% if group['name'] != '全員' and group['active'] == 1 %}
+                                <form method="post" action="/admin/groups/{{ group['id'] }}/deactivate" onsubmit="return confirm('この通知グループを無効にしますか？');">
+                                    <button class="danger" type="submit">無効にする</button>
+                                </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </table>
+        </section>
+
+        <a class="back-link" href="/admin">管理画面へ戻る</a>
+    </main>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#c91f1f">
+    <link rel="manifest" href="/static/manifest.json">
+    <title>Push定型文編集</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #f4f6f8; color: #1f2933; font-family: sans-serif; font-size: 18px; }
+        main { max-width: 720px; margin: 0 auto; }
+        .card { padding: 18px; border: 2px solid #d7dde5; border-radius: 14px; background: white; }
+        label { display: block; margin-bottom: 14px; font-weight: bold; }
+        input, textarea { width: 100%; margin-top: 6px; padding: 10px; border: 2px solid #9aa5b1; border-radius: 8px; box-sizing: border-box; font: inherit; }
+        textarea { min-height: 150px; }
+        button, .button { display: inline-block; padding: 10px 14px; border: 0; border-radius: 8px; background: #1f4f82; color: white; font: inherit; font-weight: bold; text-decoration: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>{% if push_template %}Push定型文編集{% else %}Push定型文新規作成{% endif %}</h1>
+
+        <form class="card" method="post" action="{{ form_action }}">
+            <label>
+                表示名
+                <input type="text" name="name" value="{{ push_template['name'] if push_template else '' }}" required>
+            </label>
+
+            <label>
+                通知タイトル
+                <input type="text" name="title" value="{{ push_template['title'] if push_template else '' }}" required>
+            </label>
+
+            <label>
+                通知本文
+                <textarea name="body" required>{{ push_template['body'] if push_template else '' }}</textarea>
+            </label>
+
+            <label>
+                <input type="checkbox" name="active" value="1" {% if not push_template or push_template['active'] == 1 %}checked{% endif %}>
+                有効
+            </label>
+
+            <button type="submit">保存</button>
+            <a class="button" href="/admin/push-templates">戻る</a>
+        </form>
+    </main>
+</body>
+</html>

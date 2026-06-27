@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#c91f1f">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Emergency">
+    <meta name="apple-mobile-web-app-title" content="{{ app_name() }}">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/static/icons/icon.svg">
-    <title>緊急連絡システム</title>
+    <link rel="icon" href="{{ app_icon_path() }}">
+    <link rel="apple-touch-icon" href="{{ app_icon_path() }}">
+    <title>{{ app_name() }}</title>
     <style>
         * {
             box-sizing: border-box;
@@ -232,7 +232,7 @@
 </head>
 <body>
     <main>
-        <h1>緊急連絡システム</h1>
+        <h1>{{ app_name() }}</h1>
 
         <section class="install-card browser-only" aria-label="ホーム画面に追加">
             <h2>ホーム画面に追加</h2>
@@ -265,11 +265,19 @@
             {% if request.query_params.get("error") == "wrong_password" %}
                 <p class="error">あいことばが違います。</p>
             {% endif %}
+            {% if request.query_params.get("error") == "duplicate_member" %}
+                <p class="error">同じ名前と職種で既に登録されています。</p>
+            {% endif %}
 
             <form class="form-card" method="post" action="/register" autocomplete="off">
                 <label>
                     名前
                     <input type="text" name="name" autocomplete="name" required>
+                </label>
+
+                <label>
+                    連絡先（任意）
+                    <input type="tel" name="contact" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
                 </label>
 
                 <label>
@@ -305,6 +313,13 @@
         let deferredInstallPrompt = null;
         const installButton = document.getElementById("install-app-button");
         const savedMemberCode = localStorage.getItem("emergency_member_code");
+        const contactInput = document.querySelector('input[name="contact"]');
+
+        if (contactInput) {
+            contactInput.addEventListener("input", function () {
+                contactInput.value = contactInput.value.replace(/\D/g, "");
+            });
+        }
 
         if (isStandaloneMode && savedMemberCode) {
             window.location.replace("/user/" + encodeURIComponent(savedMemberCode));

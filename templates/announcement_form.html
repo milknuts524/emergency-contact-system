@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#c91f1f">
+    <link rel="manifest" href="/static/manifest.json">
+    <title>お知らせ編集</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #f4f6f8; color: #1f2933; font-family: sans-serif; font-size: 18px; }
+        main { max-width: 760px; margin: 0 auto; }
+        .card { padding: 18px; border: 2px solid #d7dde5; border-radius: 14px; background: white; }
+        label { display: block; margin-bottom: 14px; font-weight: bold; }
+        input, select, textarea { width: 100%; margin-top: 6px; padding: 10px; border: 2px solid #9aa5b1; border-radius: 8px; box-sizing: border-box; font: inherit; }
+        textarea { min-height: 260px; }
+        button, .button { display: inline-block; padding: 10px 14px; border: 0; border-radius: 8px; background: #1f4f82; color: white; font: inherit; font-weight: bold; text-decoration: none; cursor: pointer; }
+        .help { color: #52606d; font-size: 15px; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>{% if announcement %}お知らせ編集{% else %}お知らせ新規作成{% endif %}</h1>
+
+        <form class="card" method="post" action="{{ form_action }}">
+            <label>
+                タイトル
+                <input type="text" name="title" value="{{ announcement['title'] if announcement else '' }}" required>
+            </label>
+
+            <label>
+                本文
+                <textarea name="body" required>{{ announcement['body'] if announcement else '' }}</textarea>
+            </label>
+            <p class="help">Markdown記法を利用できます。</p>
+
+            <label>
+                重要度
+                <select name="importance">
+                    {% set importance = announcement['importance'] if announcement else 'normal' %}
+                    <option value="normal" {% if importance == 'normal' %}selected{% endif %}>normal</option>
+                    <option value="important" {% if importance == 'important' %}selected{% endif %}>important</option>
+                    <option value="emergency" {% if importance == 'emergency' %}selected{% endif %}>emergency</option>
+                </select>
+            </label>
+
+            <label>
+                対象通知グループ
+                <select name="target_group_id">
+                    <option value="">全員</option>
+                    {% for group in groups %}
+                        <option value="{{ group['id'] }}"
+                            {% if announcement and announcement['target_group_id'] == group['id'] %}selected{% endif %}>
+                            {{ group["name"] }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
+
+            <label>
+                <input type="checkbox" name="published" value="1" {% if not announcement or announcement['published'] == 1 %}checked{% endif %}>
+                公開
+            </label>
+
+            <label>
+                公開開始日時
+                <input type="datetime-local" name="published_from" value="{{ (announcement['published_from'] or '').replace(' ', 'T') if announcement else '' }}">
+            </label>
+
+            <label>
+                公開終了日時
+                <input type="datetime-local" name="published_until" value="{{ (announcement['published_until'] or '').replace(' ', 'T') if announcement else '' }}">
+            </label>
+
+            <button type="submit">保存</button>
+            <a class="button" href="/admin/announcements">戻る</a>
+        </form>
+    </main>
+</body>
+</html>

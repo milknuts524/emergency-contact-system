@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#c91f1f">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Emergency">
+    <meta name="apple-mobile-web-app-title" content="{{ app_name() }}">
     <link rel="manifest" href="/static/manifest.json">
-    <link rel="icon" href="/static/icons/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/static/icons/icon.svg">
+    <link rel="icon" href="{{ app_icon_path() }}">
+    <link rel="apple-touch-icon" href="{{ app_icon_path() }}">
     <title>管理画面</title>
     <style>
         body {
@@ -84,6 +84,7 @@
             }
         }
         .push-box input,
+        .push-box select,
         .push-box textarea {
             width: 100%;
             max-width: 520px;
@@ -93,6 +94,22 @@
         }
         .push-box textarea {
             min-height: 80px;
+        }
+        .push-target-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: end;
+            margin-top: 10px;
+        }
+        .push-target-actions label {
+            margin: 0;
+            font-weight: bold;
+        }
+        .push-target-actions select {
+            min-width: 220px;
+            width: auto;
+            margin: 6px 0 0;
         }
         .push-submit {
             width: 100%;
@@ -104,6 +121,53 @@
             color: white;
             font-size: 26px;
             font-weight: bold;
+        }
+        .push-secondary {
+            min-height: 44px;
+            padding: 9px 12px;
+            border: none;
+            border-radius: 8px;
+            background: #1f4f82;
+            color: white;
+            font: inherit;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .push-secondary.warning {
+            background: #7c2d12;
+        }
+        .member-check {
+            width: 22px;
+            height: 22px;
+        }
+        .memo-form {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .memo-form input {
+            width: 9em;
+            min-width: 0;
+            padding: 7px;
+            border: 1px solid #9aa5b1;
+            border-radius: 6px;
+            font: inherit;
+        }
+        .memo-form button {
+            padding: 7px 9px;
+            border: none;
+            border-radius: 6px;
+            background: #1f4f82;
+            color: white;
+            font: inherit;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .sort-link {
+            color: #1f4f82;
+            font-weight: bold;
+            text-decoration: none;
         }
         .sort-box {
             margin-bottom: 20px;
@@ -218,9 +282,31 @@
         .status-help { color: #c62828; font-weight: bold; }
         .status-trouble { color: #b28704; font-weight: bold; }
         .status-fine { color: #2e7d32; font-weight: bold; }
+        .sent-toast {
+            position: fixed;
+            top: 14px;
+            right: 14px;
+            z-index: 30;
+            padding: 12px 16px;
+            border-radius: 999px;
+            background: #137a3a;
+            color: #ffffff;
+            font-size: 18px;
+            font-weight: bold;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.24);
+            opacity: 0;
+            transform: translateY(-8px);
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+        .sent-toast.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body>
+    <div id="push-sent-toast" class="sent-toast" role="status" aria-live="polite">通知を送りました</div>
     <h1>管理画面</h1>
 
     {% if request.query_params.get("imported") is not none %}
@@ -240,13 +326,22 @@
     {% if request.query_params.get("push_success") is not none %}
         <div class="notice">
             Push通知送信結果：
+            対象 {{ request.query_params.get("push_target") or "全員" }}、
+            対象人数 {{ request.query_params.get("push_members") or "0" }} 人、
+            Push購読 {{ request.query_params.get("push_subscriptions") or "0" }} 件、
             成功 {{ request.query_params.get("push_success") }} 件、
             失敗 {{ request.query_params.get("push_failed") }} 件
         </div>
     {% endif %}
+    {% if request.query_params.get("push_error") == "target" %}
+        <div class="error">送信対象の通知グループが見つかりません。</div>
+    {% endif %}
 
     {% if request.query_params.get("responses_reset") == "1" %}
         <div class="notice">返信率をリセットしました。全員の状態を未返信として表示します。</div>
+    {% endif %}
+    {% if request.query_params.get("member_groups_saved") == "1" %}
+        <div class="notice">通知グループ所属を保存しました。</div>
     {% endif %}
 
     <div class="summary">
@@ -264,6 +359,9 @@
             <input id="csv-file-input" class="hidden-file-input" type="file" name="csv_file" accept=".csv,text/csv" required>
             <button class="action-button" type="button" id="csv-import-button">CSVを読み込む</button>
         </form>
+        <a class="action-button" href="/admin/groups">通知グループ管理</a>
+        <a class="action-button" href="/admin/announcements">お知らせ管理</a>
+        <a class="action-button" href="/admin/push-templates">Push定型文管理</a>
         <a class="action-button" href="/admin/settings">設定</a>
     </div>
 
@@ -291,16 +389,47 @@
 
     <div class="push-box">
         <h2>一斉Push通知</h2>
-        <form method="post" action="/admin/push/send">
+        <form id="push-send-form" method="post" action="/admin/push/send">
+            <label>
+                定型文<br>
+                <select id="push-template-select">
+                    <option value="">選択しない</option>
+                    {% for template in push_templates %}
+                        <option
+                            value="{{ template['id'] }}"
+                            data-title="{{ template['title'] }}"
+                            data-body="{{ template['body'] }}"
+                        >
+                            {{ template["name"] }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </label>
             <label>
                 タイトル<br>
-                <input type="text" name="title" value="緊急連絡" required>
+                <input id="push-title-input" type="text" name="title" value="緊急連絡" required>
             </label>
             <label>
                 本文<br>
-                <textarea name="body" required>安否確認をお願いします。</textarea>
+                <textarea id="push-body-input" name="body" required>安否確認をお願いします。</textarea>
             </label>
-            <button class="push-submit" type="submit">一斉通知送信</button>
+            <button class="push-submit" type="submit" name="target_mode" value="all">一斉通知送信</button>
+
+            <div class="push-target-actions">
+                <button class="push-secondary" type="submit" name="target_mode" value="selected">選択した人だけ通知</button>
+                <button class="push-secondary warning" type="submit" name="target_mode" value="unanswered">応答がない人だけ通知</button>
+                <label>
+                    通知グループ<br>
+                    <select name="target_group">
+                        {% for group in notification_groups %}
+                            {% if group["name"] != "全員" %}
+                                <option value="{{ group['id'] }}">{{ group["name"] }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </label>
+                <button class="push-secondary" type="submit" name="target_mode" value="group">グループ通知</button>
+            </div>
         </form>
     </div>
 
@@ -331,30 +460,64 @@
 
     <div class="sort-box">
         並び替え：
-        <a href="/admin?sort=name&direction=asc">名前</a>
-        <a href="/admin?sort=date&direction=desc">日付</a>
-        <a href="/admin?sort=occupation&direction=asc">職種</a>
-        <a href="/admin?sort=status&direction=asc">色別</a>
-        <a href="/admin?sort=registered_at&direction=desc">登録時刻</a>
-        <a href="/admin?sort=latest_response_at&direction=desc">最終時刻</a>
+        <a href="/admin?sort=name&direction={{ 'desc' if sort == 'name' and direction == 'asc' else 'asc' }}">名前{% if sort == 'name' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
+        <a href="/admin?sort=occupation&direction={{ 'desc' if sort == 'occupation' and direction == 'asc' else 'asc' }}">職種{% if sort == 'occupation' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
+        <a href="/admin?sort=occupation_memo&direction={{ 'desc' if sort == 'occupation_memo' and direction == 'asc' else 'asc' }}">職種メモ{% if sort == 'occupation_memo' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
+        <a href="/admin?sort=contact&direction={{ 'desc' if sort == 'contact' and direction == 'asc' else 'asc' }}">連絡先{% if sort == 'contact' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
+        <a href="/admin?sort=status&direction={{ 'desc' if sort == 'status' and direction == 'asc' else 'asc' }}">色別{% if sort == 'status' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
+        <a href="/admin?sort=comment&direction={{ 'desc' if sort == 'comment' and direction == 'asc' else 'asc' }}">コメント{% if sort == 'comment' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
+        <a href="/admin?sort=registered_at&direction={{ 'asc' if sort == 'registered_at' and direction == 'desc' else 'desc' }}">登録時刻{% if sort == 'registered_at' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
+        <a href="/admin?sort=latest_response_at&direction={{ 'asc' if sort == 'latest_response_at' and direction == 'desc' else 'desc' }}">最終時刻{% if sort == 'latest_response_at' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
+        <a href="/admin?sort=code&direction={{ 'desc' if sort == 'code' and direction == 'asc' else 'asc' }}">識別コード{% if sort == 'code' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a>
     </div>
 
     <table>
         <tr>
-            <th><a href="/admin?sort=name&direction=asc">名前</a></th>
-            <th><a href="/admin?sort=occupation&direction=asc">職種</a></th>
-            <th><a href="/admin?sort=status&direction=asc">状態</a></th>
-            <th>コメント</th>
-            <th><a href="/admin?sort=latest_response_at&direction=desc">最終応答日時</a></th>
-            <th><a href="/admin?sort=registered_at&direction=desc">登録日時</a></th>
-            <th>識別コード</th>
+            <th>
+                <label>
+                    <input id="select-all-members" class="member-check" type="checkbox" aria-label="全員を選択">
+                    全員
+                </label>
+            </th>
+            <th><a class="sort-link" href="/admin?sort=name&direction={{ 'desc' if sort == 'name' and direction == 'asc' else 'asc' }}">名前{% if sort == 'name' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            <th><a class="sort-link" href="/admin?sort=occupation&direction={{ 'desc' if sort == 'occupation' and direction == 'asc' else 'asc' }}">職種{% if sort == 'occupation' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            <th><a class="sort-link" href="/admin?sort=occupation_memo&direction={{ 'desc' if sort == 'occupation_memo' and direction == 'asc' else 'asc' }}">職種メモ{% if sort == 'occupation_memo' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            <th><a class="sort-link" href="/admin?sort=contact&direction={{ 'desc' if sort == 'contact' and direction == 'asc' else 'asc' }}">連絡先{% if sort == 'contact' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            <th>通知グループ</th>
+            <th><a class="sort-link" href="/admin?sort=status&direction={{ 'desc' if sort == 'status' and direction == 'asc' else 'asc' }}">状態{% if sort == 'status' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            <th><a class="sort-link" href="/admin?sort=comment&direction={{ 'desc' if sort == 'comment' and direction == 'asc' else 'asc' }}">コメント{% if sort == 'comment' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            <th><a class="sort-link" href="/admin?sort=latest_response_at&direction={{ 'asc' if sort == 'latest_response_at' and direction == 'desc' else 'desc' }}">最終応答日時{% if sort == 'latest_response_at' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            <th><a class="sort-link" href="/admin?sort=registered_at&direction={{ 'asc' if sort == 'registered_at' and direction == 'desc' else 'desc' }}">登録日時{% if sort == 'registered_at' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
+            <th><a class="sort-link" href="/admin?sort=code&direction={{ 'desc' if sort == 'code' and direction == 'asc' else 'asc' }}">識別コード{% if sort == 'code' %} {{ '↑' if direction == 'asc' else '↓' }}{% endif %}</a></th>
             <th>削除</th>
         </tr>
 
         {% for m in members %}
         <tr>
+            <td>
+                <input
+                    class="member-check member-select-checkbox"
+                    form="push-send-form"
+                    type="checkbox"
+                    name="member_ids"
+                    value="{{ m['id'] }}"
+                    aria-label="{{ m['name'] }}を通知対象に選択"
+                >
+            </td>
             <td>{{ m["name"] }}</td>
             <td>{{ m["group_name"] }}</td>
+            <td>
+                <form class="memo-form" method="post" action="/admin/member/{{ m['id'] }}/occupation-memo">
+                    <input type="text" name="occupation_memo" value="{{ m['occupation_memo'] or '' }}">
+                    <button type="submit">保存</button>
+                </form>
+            </td>
+            <td>{{ m["contact"] or "" }}</td>
+            <td>
+                {{ m["notification_groups_display"] }}
+                <br>
+                <a href="/admin/member/{{ m['id'] }}/groups">編集</a>
+            </td>
             <td>
                 {% if m["status"] == "fine" %}
                     <span class="status-fine">{{ status_labels["fine"] }}</span>
@@ -423,6 +586,60 @@
                 }
             });
         }
+
+        const pushTemplateSelect = document.getElementById("push-template-select");
+        const pushTitleInput = document.getElementById("push-title-input");
+        const pushBodyInput = document.getElementById("push-body-input");
+
+        if (pushTemplateSelect && pushTitleInput && pushBodyInput) {
+            pushTemplateSelect.addEventListener("change", function () {
+                const option = pushTemplateSelect.selectedOptions[0];
+                if (!option || !option.value) {
+                    return;
+                }
+                pushTitleInput.value = option.dataset.title || "";
+                pushBodyInput.value = option.dataset.body || "";
+            });
+        }
+
+        const pushSentToast = document.getElementById("push-sent-toast");
+        const pushSendForm = document.getElementById("push-send-form");
+        if (pushSendForm) {
+            pushSendForm.addEventListener("submit", function () {
+                pushSentToast.classList.add("is-visible");
+            });
+        }
+
+        const selectAllMembers = document.getElementById("select-all-members");
+        const memberSelectCheckboxes = Array.from(document.querySelectorAll(".member-select-checkbox"));
+
+        if (selectAllMembers) {
+            selectAllMembers.addEventListener("change", function () {
+                memberSelectCheckboxes.forEach(function (checkbox) {
+                    checkbox.checked = selectAllMembers.checked;
+                });
+            });
+        }
+
+        memberSelectCheckboxes.forEach(function (checkbox) {
+            checkbox.addEventListener("change", function () {
+                if (!selectAllMembers) {
+                    return;
+                }
+                const checkedCount = memberSelectCheckboxes.filter(function (item) {
+                    return item.checked;
+                }).length;
+                selectAllMembers.checked = checkedCount === memberSelectCheckboxes.length && memberSelectCheckboxes.length > 0;
+                selectAllMembers.indeterminate = checkedCount > 0 && checkedCount < memberSelectCheckboxes.length;
+            });
+        });
+
+        {% if request.query_params.get("push_success") is not none %}
+            pushSentToast.classList.add("is-visible");
+            window.setTimeout(function () {
+                pushSentToast.classList.remove("is-visible");
+            }, 2600);
+        {% endif %}
     </script>
 </body>
 </html>
