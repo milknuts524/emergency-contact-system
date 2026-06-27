@@ -468,8 +468,10 @@
                     const response = await savePushSubscription(subscription);
                     if (response.ok) {
                         const version = await getServiceWorkerVersion(registration);
-                        pushButton.textContent = "通知を再登録";
                         pushMessage.textContent = "通知登録済み / " + endpointType(subscription.endpoint) + " / SW " + version;
+                        window.setTimeout(function () {
+                            pushArea.classList.add("is-hidden");
+                        }, 900);
                     }
                 }
             } catch (error) {
@@ -521,6 +523,9 @@
                     version +
                     " / テスト通知を送信してください";
                 pushButton.disabled = true;
+                window.setTimeout(function () {
+                    pushArea.classList.add("is-hidden");
+                }, 1200);
             } else {
                 pushMessage.textContent = "通知登録に失敗しました。";
             }
