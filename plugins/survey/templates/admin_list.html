@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>アンケート管理</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #f4f6f8; color: #1f2933; font-family: sans-serif; font-size: 18px; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+        .button { display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 0 16px; border: 0; border-radius: 8px; background: #1f4f82; color: #fff; font: inherit; font-weight: bold; text-decoration: none; }
+        .primary { background: #0f766e; }
+        table { width: 100%; border-collapse: collapse; background: white; }
+        th, td { padding: 10px; border-bottom: 1px solid #ccd5df; text-align: left; vertical-align: top; }
+        .status { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>アンケート管理</h1>
+    <div class="toolbar">
+        <a class="button primary" href="/admin/surveys/new">新規作成</a>
+        <a class="button" href="/admin">管理画面へ戻る</a>
+    </div>
+
+    <table>
+        <tr>
+            <th>タイトル</th>
+            <th>対象種別</th>
+            <th>対象</th>
+            <th>形式</th>
+            <th>期限</th>
+            <th>状態</th>
+            <th>回答数</th>
+            <th>操作</th>
+        </tr>
+        {% for survey in surveys %}
+            <tr>
+                <td>{{ survey["title"] }}</td>
+                <td>{{ survey["target_type_label"] }}</td>
+                <td>{{ survey["target_label"] }}</td>
+                <td>{{ response_types.get(survey["response_type"], {}).get("label", survey["response_type"]) }}</td>
+                <td>{{ survey["deadline_at"] or "" }}</td>
+                <td class="status">{% if survey["is_active"] == 1 %}有効{% else %}無効{% endif %}</td>
+                <td>{{ survey["response_count"] }}</td>
+                <td><a class="button" href="/admin/surveys/{{ survey['id'] }}">集計</a></td>
+            </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

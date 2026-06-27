@@ -100,6 +100,15 @@
             font-weight: 800;
         }
 
+        .danger-card {
+            border-color: #c91f1f;
+            background: #fff5f5;
+        }
+
+        .danger-button {
+            background: #991b1b;
+        }
+
         .inline-fill-button {
             width: auto;
             min-height: 0;
@@ -162,6 +171,18 @@
         {% if request.query_params.get("push_test_mode_saved") == "1" %}
             <div class="notice">Pushテストモード設定を保存しました。</div>
         {% endif %}
+        {% if request.query_params.get("plugins_saved") == "1" %}
+            <div class="notice">プラグイン設定を保存しました。反映にはアプリの再起動が必要です。</div>
+        {% endif %}
+        {% if request.query_params.get("plugin_error") == "invalid" %}
+            <div class="notice">存在しないプラグイン名が含まれています。</div>
+        {% endif %}
+        {% if request.query_params.get("calendar_saved") == "1" %}
+            <div class="notice">予定カレンダー設定を保存しました。</div>
+        {% endif %}
+        {% if request.query_params.get("reset") == "1" %}
+            <div class="notice">設定を初期化しました。管理者ログイン情報も初期値に戻っています。</div>
+        {% endif %}
 
         <form class="settings-card" method="post" action="/admin/settings/app" enctype="multipart/form-data">
             <h2>アプリ表示設定</h2>
@@ -210,6 +231,46 @@
             </label>
             <p class="help">AndroidやiPhoneの通知不達を切り分ける時だけONにします。</p>
             <button type="submit">Pushテストモード設定を保存</button>
+        </form>
+
+        <form class="settings-card" method="post" action="/admin/settings/plugins">
+            <h2>プラグイン</h2>
+            <div class="field">
+                <label>
+                    有効化するプラグイン
+                    <input type="text" name="enabled_plugins_text" value="{{ enabled_plugins_text }}" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="calendar">
+                </label>
+                <p class="help">カンマ区切りで入力します。例：calendar,cms,phonebook</p>
+                <p class="help">利用可能：{{ available_plugins|join(", ") if available_plugins else "なし" }}</p>
+                <p class="help">
+                    現在読み込み済み：
+                    {% if loaded_plugins %}
+                        {% for plugin in loaded_plugins %}{{ plugin["name"] }}{% if not loop.last %}, {% endif %}{% endfor %}
+                    {% else %}
+                        なし
+                    {% endif %}
+                </p>
+                <p class="help">保存後、アプリを再起動すると反映されます。</p>
+            </div>
+            <button type="submit">プラグイン設定を保存</button>
+        </form>
+
+        <form class="settings-card" method="post" action="/admin/settings/calendar">
+            <h2>予定カレンダー</h2>
+            <p class="help">予定はGoogleカレンダー等の公開ICS URLから読み取り専用で取得します。</p>
+            <div class="field">
+                <label>
+                    CALENDAR_ICS_URL
+                    <input type="url" name="calendar_ics_url" value="{{ calendar_status['ics_url'] }}" autocomplete="off" placeholder="https://calendar.google.com/calendar/ical/...">
+                </label>
+            </div>
+            <p>最終取得時刻：{{ calendar_status["last_fetch_at"] or "未取得" }}</p>
+            {% if calendar_status["last_error"] %}
+                <p class="help">最終取得エラー：{{ calendar_status["last_error"] }}</p>
+            {% endif %}
+            <p class="help">Googleカレンダーの公開ICS URLを指定してください。Google認証やOAuthは使用しません。</p>
+            <p class="help">`calendar` プラグインを有効にしていない場合は、上のプラグイン欄で有効化してからアプリを再起動してください。</p>
+            <button type="submit">予定カレンダー設定を保存</button>
         </form>
 
         <form class="settings-card" method="post" action="/admin/settings/occupations">
@@ -328,6 +389,13 @@
                 <p class="help">例: mailto:admin@example.com</p>
             </div>
             <button type="submit">VAPID設定を保存</button>
+        </form>
+
+        <form class="settings-card danger-card" method="post" action="/admin/settings/reset"
+              onsubmit="return confirm('全ての設定を初期化します。管理者ログイン、あいことば、VAPID、公開URL、プラグイン、カレンダー設定も初期値に戻ります。登録者・応答・お知らせ・アップロード資料は削除されません。実行しますか？');">
+            <h2>全て初期化</h2>
+            <p class="help">登録者、応答履歴、お知らせ、アップロード資料は削除しません。設定だけを初期値に戻します。</p>
+            <button class="danger-button" type="submit">全て初期化</button>
         </form>
 
         <a class="back-link" href="/admin">管理画面へ戻る</a>

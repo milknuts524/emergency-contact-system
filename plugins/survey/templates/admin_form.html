@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>アンケート作成</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #f4f6f8; color: #1f2933; font-family: sans-serif; font-size: 18px; }
+        main { max-width: 760px; margin: 0 auto; }
+        form { padding: 18px; border: 2px solid #d7dde5; border-radius: 12px; background: white; }
+        label { display: block; margin-bottom: 14px; font-weight: bold; }
+        input, select, textarea { width: 100%; margin-top: 6px; padding: 10px; border: 2px solid #9aa5b1; border-radius: 8px; box-sizing: border-box; font: inherit; }
+        textarea { min-height: 120px; }
+        .check { width: auto; }
+        .button, button { display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 0 16px; border: 0; border-radius: 8px; background: #1f4f82; color: #fff; font: inherit; font-weight: bold; text-decoration: none; cursor: pointer; }
+        button { background: #0f766e; }
+        .help { color: #52606d; font-size: 15px; }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>アンケート作成</h1>
+        <form method="post" action="/admin/surveys/new">
+            <label>
+                タイトル
+                <input type="text" name="title" required>
+            </label>
+            <label>
+                説明
+                <textarea name="description"></textarea>
+            </label>
+            <label>
+                対象種別
+                <select id="target-type-select" name="target_type">
+                    <option value="all">全員</option>
+                    <option value="role_group">職種グループ</option>
+                    <option value="notification_group">通知グループ</option>
+                </select>
+            </label>
+            <label id="role-group-field">
+                職種グループ
+                <select name="target_group">
+                    {% for group in role_groups %}
+                        <option value="{{ group }}">{{ group }}</option>
+                    {% endfor %}
+                    {% if not role_groups %}
+                        <option value="">職種グループがありません</option>
+                    {% endif %}
+                </select>
+            </label>
+            <label id="notification-group-field">
+                通知グループ
+                <select name="target_id">
+                    {% for group in notification_groups %}
+                        <option value="{{ group['id'] }}">{{ group["name"] }}</option>
+                    {% endfor %}
+                    {% if not notification_groups %}
+                        <option value="0">通知グループがありません</option>
+                    {% endif %}
+                </select>
+            </label>
+            <label>
+                回答形式
+                <select name="response_type">
+                    {% for key, item in response_types.items() %}
+                        <option value="{{ key }}">{{ item["label"] }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label>
+                選択肢
+                <textarea name="choices_text" placeholder="選択式の場合のみ、1行1選択肢で入力"></textarea>
+            </label>
+            <label>
+                回答期限
+                <input type="datetime-local" name="deadline_at">
+            </label>
+            <label>
+                <input class="check" type="checkbox" name="is_active" value="1" checked>
+                有効
+            </label>
+            <p class="help">作成後、集計画面から対象グループへPush通知できます。</p>
+            <button type="submit">作成</button>
+            <a class="button" href="/admin/surveys">戻る</a>
+        </form>
+    </main>
+    <script>
+        const targetTypeSelect = document.getElementById("target-type-select");
+        const roleGroupField = document.getElementById("role-group-field");
+        const notificationGroupField = document.getElementById("notification-group-field");
+
+        function updateTargetFields() {
+            roleGroupField.style.display = targetTypeSelect.value === "role_group" ? "block" : "none";
+            notificationGroupField.style.display = targetTypeSelect.value === "notification_group" ? "block" : "none";
+        }
+
+        targetTypeSelect.addEventListener("change", updateTargetFields);
+        updateTargetFields();
+    </script>
+</body>
+</html>

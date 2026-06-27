@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>アンケート回答</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f4f6f8; color: #1f2933; font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", sans-serif; font-size: 18px; }
+        main { max-width: 560px; min-height: 100vh; margin: 0 auto; padding: 18px 16px 28px; }
+        .card { padding: 18px; border: 2px solid #d7dde5; border-radius: 14px; background: white; }
+        h1 { margin: 0 0 12px; font-size: 28px; }
+        .notice { margin-bottom: 14px; padding: 12px; border-radius: 8px; background: #e8f5e9; color: #1b5e20; font-weight: 800; }
+        label { display: block; margin-bottom: 12px; font-weight: 800; }
+        .choice { padding: 12px; border: 1px solid #ccd5df; border-radius: 10px; background: #f8fafc; }
+        input[type="radio"] { width: 22px; height: 22px; margin-right: 8px; }
+        textarea { width: 100%; min-height: 120px; padding: 12px; border: 2px solid #9aa5b1; border-radius: 10px; font: inherit; }
+        button, .button { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 62px; margin-top: 12px; border: 0; border-radius: 12px; background: #1f4f82; color: white; font: inherit; font-size: 22px; font-weight: 800; text-decoration: none; }
+        button { background: #0f766e; }
+        .meta { color: #52606d; font-weight: 700; }
+    </style>
+</head>
+<body>
+    <main>
+        {% if request.query_params.get("answered") == "1" %}
+            <div class="notice">回答を保存しました。</div>
+        {% endif %}
+        {% if request.query_params.get("closed") == "1" %}
+            <div class="notice">このアンケートは現在回答できません。</div>
+        {% endif %}
+        <section class="card">
+            <h1>{{ survey["title"] }}</h1>
+            <p class="meta">{{ member["name"] }} さん / {{ member["group_name"] }}</p>
+            <p>{{ survey["description"] }}</p>
+            <p class="meta">形式：{{ response_type_label }}</p>
+            {% if survey["deadline_at"] %}
+                <p class="meta">期限：{{ survey["deadline_at"] }}</p>
+            {% endif %}
+            {% if response %}
+                <p class="notice">回答済み：{{ response["response_value"] }}</p>
+            {% endif %}
+
+            {% if is_open %}
+                <form method="post" action="/survey/{{ survey['id'] }}/answer">
+                    <input type="hidden" name="code" value="{{ member['code'] }}">
+                    {% if survey["response_type"] == "free_text" %}
+                        <label>
+                            回答
+                            <textarea name="response_value" required>{{ response["response_value"] if response else "" }}</textarea>
+                        </label>
+                    {% else %}
+                        {% for choice in choices %}
+                            <label class="choice">
+                                <input type="radio" name="response_value" value="{{ choice }}" {% if response and response["response_value"] == choice %}checked{% endif %} required>
+                                {{ choice }}
+                            </label>
+                        {% endfor %}
+                    {% endif %}
+                    <label>
+                        コメント（任意）
+                        <textarea name="comment">{{ response["comment"] if response else "" }}</textarea>
+                    </label>
+                    <button type="submit">回答を送信</button>
+                </form>
+            {% else %}
+                <p class="notice">このアンケートは終了しています。</p>
+            {% endif %}
+            <a class="button" href="/user/{{ member['code'] }}">戻る</a>
+        </section>
+    </main>
+</body>
+</html>

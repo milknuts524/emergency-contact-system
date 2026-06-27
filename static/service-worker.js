@@ -1,9 +1,11 @@
-const SW_VERSION = "2026-06-27-debug-1";
-const CACHE_NAME = "emergency-contact-v6";
+const SW_VERSION = "2026-06-27-maintenance-1";
+const CACHE_NAME = "emergency-contact-v7";
 const DEBUG_PUSH = true;
+const MAINTENANCE_URL = "/static/maintenance.html";
 const APP_SHELL = [
   "/",
   "/static/manifest.json",
+  MAINTENANCE_URL,
   "/static/icons/icon.svg",
   "/static/icons/maskable-icon.svg"
 ];
@@ -30,6 +32,15 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") {
+    return;
+  }
+
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).catch(async () => {
+        return await caches.match(MAINTENANCE_URL) || caches.match("/");
+      })
+    );
     return;
   }
 

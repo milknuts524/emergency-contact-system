@@ -7,3 +7,4 @@ emergency.db
 vapid_private_key.pem
 current_url.txt
 cloudflared.log
+static/uploads/

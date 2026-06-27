@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#c91f1f">
+    <link rel="manifest" href="/static/manifest.json">
+    <title>予定</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 18px;
+            background: #f4f6f8;
+            color: #1f2933;
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", sans-serif;
+            font-size: 18px;
+            line-height: 1.5;
+        }
+        main {
+            max-width: 920px;
+            margin: 0 auto;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        h1 {
+            margin: 0;
+            font-size: 34px;
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            min-height: 44px;
+            padding: 0 14px;
+            border-radius: 8px;
+            background: #1f4f82;
+            color: #ffffff;
+            font-weight: 800;
+            text-decoration: none;
+        }
+        .notice {
+            margin-bottom: 14px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #fff7e6;
+            color: #7c2d12;
+            font-weight: 800;
+        }
+        .meta {
+            margin: 0 0 16px;
+            color: #52606d;
+            font-size: 15px;
+        }
+        .group {
+            margin-bottom: 18px;
+            padding: 14px;
+            border: 1px solid #ccd5df;
+            border-radius: 10px;
+            background: #ffffff;
+        }
+        .group h2 {
+            margin: 0 0 10px;
+            font-size: 24px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th,
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e1e7ef;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            color: #52606d;
+            font-size: 15px;
+        }
+        .time-cell {
+            white-space: nowrap;
+            font-weight: 800;
+        }
+        .title-cell {
+            font-weight: 800;
+        }
+        .empty {
+            padding: 18px;
+            border-radius: 10px;
+            background: #ffffff;
+            color: #52606d;
+        }
+        @media (max-width: 680px) {
+            body {
+                padding: 14px;
+                font-size: 17px;
+            }
+            .topbar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            h1 {
+                font-size: 30px;
+            }
+            table,
+            tbody,
+            tr,
+            th,
+            td {
+                display: block;
+            }
+            tr {
+                padding: 10px 0;
+                border-bottom: 1px solid #e1e7ef;
+            }
+            th {
+                display: none;
+            }
+            td {
+                padding: 3px 0;
+                border: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="topbar">
+            <h1>予定</h1>
+            <a class="back-link" href="/admin">戻る</a>
+        </div>
+
+        {% if calendar["error"] %}
+            <div class="notice">{{ calendar["error"] }}</div>
+        {% endif %}
+
+        <p class="meta">
+            表示範囲：今後半年
+            {% if calendar["last_fetch_at"] %}
+                / 最終取得：{{ calendar["last_fetch_at"] }}
+            {% endif %}
+        </p>
+
+        {% if calendar["groups"] %}
+            {% for group in calendar["groups"] %}
+                <section class="group">
+                    <h2>{{ group["label"] }}</h2>
+                    <table>
+                        <tr>
+                            <th>日付</th>
+                            <th>開始</th>
+                            <th>終了</th>
+                            <th>タイトル</th>
+                            <th>場所</th>
+                        </tr>
+                        {% for event in group["events"] %}
+                            <tr>
+                                <td>{{ event["date"] }}（{{ event["weekday"] }}）</td>
+                                <td class="time-cell">{{ event["start_time"] or "終日" }}</td>
+                                <td class="time-cell">{{ event["end_time"] }}</td>
+                                <td class="title-cell">{{ event["title"] }}</td>
+                                <td>{{ event["location"] }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                </section>
+            {% endfor %}
+        {% elif not calendar["error"] %}
+            <div class="empty">今後半年以内の予定はありません。</div>
+        {% endif %}
+    </main>
+</body>
+</html>

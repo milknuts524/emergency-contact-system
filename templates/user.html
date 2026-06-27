@@ -52,6 +52,26 @@
             border: 2px solid #d7dde5;
             border-radius: 14px;
         }
+        .mode-label {
+            display: inline-block;
+            margin: 0 0 14px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #eef2f7;
+            color: #52606d;
+            font-size: 15px;
+            font-weight: 800;
+        }
+        .disaster-alert {
+            margin-bottom: 16px;
+            padding: 14px;
+            border-radius: 12px;
+            background: #c91f1f;
+            color: #ffffff;
+            font-size: 22px;
+            font-weight: 900;
+            text-align: center;
+        }
 
         .status-label {
             margin: 0 0 8px;
@@ -95,6 +115,22 @@
         .sent-toast.is-visible {
             opacity: 1;
             transform: translateY(0);
+        }
+
+        .reload-button {
+            position: fixed;
+            top: max(12px, env(safe-area-inset-top));
+            right: 12px;
+            z-index: 15;
+            width: auto;
+            min-height: 40px;
+            padding: 8px 11px;
+            border-radius: 999px;
+            background: #1f4f82;
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 800;
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
         }
 
         .button-form {
@@ -147,6 +183,9 @@
             padding-top: 22px;
             border-top: 2px solid #d7dde5;
         }
+        .portal-area {
+            margin-top: 18px;
+        }
 
         .memo-title {
             margin: 0 0 10px;
@@ -184,6 +223,7 @@
         }
 
         .result-link {
+            position: relative;
             display: block;
             width: 100%;
             min-height: 58px;
@@ -199,6 +239,24 @@
             text-decoration: none;
             box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
             box-sizing: border-box;
+        }
+
+        .notice-badge {
+            position: absolute;
+            top: -9px;
+            right: -9px;
+            min-width: 28px;
+            height: 28px;
+            padding: 0 8px;
+            border: 3px solid #ffffff;
+            border-radius: 999px;
+            background: #d61f1f;
+            color: #ffffff;
+            font-size: 16px;
+            font-weight: 900;
+            line-height: 22px;
+            text-align: center;
+            box-shadow: 0 2px 7px rgba(0, 0, 0, 0.22);
         }
 
         .remove-area {
@@ -241,6 +299,148 @@
 
         .push-area.is-hidden {
             display: none;
+        }
+
+        .calendar-area {
+            margin-top: 18px;
+            padding: 18px;
+            border: 2px solid #b7c7d9;
+            border-radius: 14px;
+            background: #f0f7ff;
+        }
+
+        .calendar-title {
+            margin: 0 0 12px;
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .calendar-group {
+            margin-top: 14px;
+        }
+
+        .calendar-group h3 {
+            margin: 0 0 8px;
+            color: #1f4f82;
+            font-size: 20px;
+        }
+
+        .calendar-card {
+            margin-top: 10px;
+            padding: 13px;
+            border-radius: 12px;
+            background: #ffffff;
+            border: 1px solid #ccd5df;
+        }
+
+        .calendar-card p {
+            margin: 5px 0;
+        }
+
+        .calendar-event-title {
+            font-size: 19px;
+            font-weight: 800;
+        }
+
+        .calendar-meta {
+            color: #52606d;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .calendar-message {
+            margin: 8px 0 0;
+            color: #52606d;
+            font-weight: 700;
+        }
+
+        .viewer-area {
+            margin-top: 18px;
+            padding: 18px;
+            border: 2px solid #d7dde5;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        .viewer-title {
+            margin: 0 0 12px;
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .viewer-card {
+            display: block;
+            margin-top: 10px;
+            padding: 14px;
+            border-radius: 12px;
+            background: #f8fafc;
+            color: #1f2933;
+            text-decoration: none;
+            border: 1px solid #ccd5df;
+        }
+
+        .viewer-card-title {
+            margin: 0;
+            font-size: 19px;
+            font-weight: 800;
+        }
+
+        .viewer-card-description {
+            margin: 6px 0 0;
+            color: #52606d;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .survey-area {
+            margin-top: 18px;
+            padding: 18px;
+            border: 3px solid #f59e0b;
+            border-radius: 14px;
+            background: #fff7e6;
+        }
+
+        .survey-title {
+            margin: 0 0 12px;
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .survey-card {
+            margin-top: 12px;
+            padding: 14px;
+            border-radius: 12px;
+            background: #ffffff;
+        }
+
+        .survey-card.is-answered {
+            border: 1px solid #ccd5df;
+            background: #f8fafc;
+        }
+
+        .survey-card h3 {
+            margin: 0 0 6px;
+            font-size: 21px;
+        }
+
+        .survey-card p {
+            margin: 6px 0;
+        }
+
+        .survey-link {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 58px;
+            margin-top: 12px;
+            border-radius: 12px;
+            background: #c2410c;
+            color: #ffffff;
+            font-size: 20px;
+            font-weight: 800;
+            text-decoration: none;
+            box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
         }
 
         .remove-button {
@@ -297,58 +497,149 @@
 </head>
 <body>
     <div id="sent-toast" class="sent-toast" role="status" aria-live="polite">通知完了</div>
+    <button id="reload-page-button" class="reload-button" type="button" aria-label="画面を再度開く">再度開く</button>
     <main>
         <h1>{{ app_name() }}</h1>
         <p class="person">{{ member["name"] }} さん</p>
+        {% if disaster_mode == "disaster" %}
+            <div class="disaster-alert">災害モード中</div>
+        {% else %}
+            <p class="mode-label">通常モード</p>
+        {% endif %}
 
-        <section class="status-box" aria-label="現在の状態">
-            <p class="status-label">現在の状態</p>
-            {% if latest %}
-                <p class="status-current">
-                    {% if latest["status"] == "fine" %}
-                        {{ status_labels["fine"] }}
-                    {% elif latest["status"] == "trouble" %}
-                        {{ status_labels["trouble"] }}
-                    {% elif latest["status"] == "help" %}
-                        {{ status_labels["help"] }}
-                    {% elif latest["status"] == "note" %}
-                        メモあり
-                    {% else %}
-                        未応答
-                    {% endif %}
-                </p>
-                <p class="status-time">{{ latest["created_at"].replace("T", " ") }}</p>
-            {% else %}
-                <p class="status-current">未応答</p>
-            {% endif %}
-        </section>
+        {% if disaster_mode == "disaster" %}
+            <section class="status-box" aria-label="現在の状態">
+                <p class="status-label">現在の状態</p>
+                {% if latest %}
+                    <p class="status-current">
+                        {% if latest["status"] == "fine" %}
+                            {{ status_labels["fine"] }}
+                        {% elif latest["status"] == "trouble" %}
+                            {{ status_labels["trouble"] }}
+                        {% elif latest["status"] == "help" %}
+                            {{ status_labels["help"] }}
+                        {% elif latest["status"] == "note" %}
+                            メモあり
+                        {% else %}
+                            未応答
+                        {% endif %}
+                    </p>
+                    <p class="status-time">{{ latest["created_at"].replace("T", " ") }}</p>
+                {% else %}
+                    <p class="status-current">未応答</p>
+                {% endif %}
+            </section>
 
-        <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
-            <input type="hidden" name="status" value="fine">
-            <button class="main-button green" type="submit">{{ status_labels["fine"] }}</button>
-        </form>
-
-        <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
-            <input type="hidden" name="status" value="trouble">
-            <button class="main-button yellow" type="submit">{{ status_labels["trouble"] }}</button>
-        </form>
-
-        <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
-            <input type="hidden" name="status" value="help">
-            <button class="main-button red" type="submit">{{ status_labels["help"] }}</button>
-        </form>
-
-        <section class="memo-area" aria-label="状況メモ">
-            <p class="memo-title">状況メモ（任意）</p>
-            <form method="post" action="/user/{{ member['code'] }}/respond">
-                <textarea name="comment" placeholder="例：けがをしました。水が必要です。避難所にいます。"></textarea>
-
-                <button class="memo-button" type="submit">
-                    メモ送信
-                </button>
+            <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
+                <input type="hidden" name="status" value="fine">
+                <button class="main-button green" type="submit">{{ status_labels["fine"] }}</button>
             </form>
-            <a class="result-link" href="/result">結果を見る</a>
-            <a class="result-link" href="/staff">お知らせ</a>
+
+            <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
+                <input type="hidden" name="status" value="trouble">
+                <button class="main-button yellow" type="submit">{{ status_labels["trouble"] }}</button>
+            </form>
+
+            <form class="button-form" method="post" action="/user/{{ member['code'] }}/respond">
+                <input type="hidden" name="status" value="help">
+                <button class="main-button red" type="submit">{{ status_labels["help"] }}</button>
+            </form>
+
+            <section class="memo-area" aria-label="状況メモ">
+                <p class="memo-title">状況メモ（任意）</p>
+                <form method="post" action="/user/{{ member['code'] }}/respond">
+                    <textarea name="comment" placeholder="例：けがをしました。水が必要です。避難所にいます。"></textarea>
+
+                    <button class="memo-button" type="submit">
+                        メモ送信
+                    </button>
+                </form>
+                <a class="result-link" href="/result">結果を見る</a>
+            </section>
+        {% endif %}
+
+        <section class="portal-area" aria-label="通常機能">
+            <a class="result-link" href="/staff">
+                お知らせ
+                {% if announcement_count and announcement_count > 0 %}
+                    <span class="notice-badge" aria-label="お知らせ {{ announcement_count }} 件">{{ announcement_count }}</span>
+                {% endif %}
+            </a>
+            {% if viewer_data and viewer_data["items"] %}
+                <section class="viewer-area" aria-label="{{ viewer_data['display_name'] }}">
+                    <p class="viewer-title">{{ viewer_data["display_name"] }}</p>
+                    {% for item in viewer_data["items"] %}
+                        <a class="viewer-card" href="{% if item['file_type'] == 'pdf' %}/viewer/{{ item['id'] }}/file{% else %}/viewer/{{ item['id'] }}{% endif %}">
+                            <p class="viewer-card-title">{{ item["title"] }}</p>
+                            <p class="viewer-card-description">
+                                {% if item["file_type"] == "pdf" %}PDFを開く{% else %}画像を表示{% endif %}
+                            </p>
+                            {% if item["description"] %}
+                                <p class="viewer-card-description">{{ item["description"] }}</p>
+                            {% endif %}
+                        </a>
+                    {% endfor %}
+                </section>
+            {% endif %}
+            {% if calendar_enabled %}
+                <section class="calendar-area" aria-label="予定">
+                    <p class="calendar-title">予定</p>
+                    {% if calendar_data and calendar_data["error"] %}
+                        <p class="calendar-message">{{ calendar_data["error"] }}</p>
+                    {% elif calendar_data and calendar_data["groups"] %}
+                        {% for group in calendar_data["groups"] %}
+                            <div class="calendar-group">
+                                <h3>{{ group["label"] }}</h3>
+                                {% for event in group["events"] %}
+                                    <article class="calendar-card">
+                                        <p class="calendar-event-title">{{ event["title"] }}</p>
+                                        <p class="calendar-meta">
+                                            {{ event["date"] }}（{{ event["weekday"] }}）
+                                            {% if event["start_time"] %}
+                                                {{ event["start_time"] }}{% if event["end_time"] %} - {{ event["end_time"] }}{% endif %}
+                                            {% else %}
+                                                終日
+                                            {% endif %}
+                                        </p>
+                                        {% if event["location"] %}
+                                            <p>場所：{{ event["location"] }}</p>
+                                        {% endif %}
+                                        {% if event["description"] %}
+                                            <p>{{ event["description"] }}</p>
+                                        {% endif %}
+                                    </article>
+                                {% endfor %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="calendar-message">今後の予定はありません。</p>
+                    {% endif %}
+                </section>
+            {% endif %}
+            {% if survey_items %}
+                <section class="survey-area" aria-label="アンケート">
+                    <p class="survey-title">アンケート</p>
+                    {% for survey in survey_items %}
+                        <article class="survey-card {% if survey['answered'] %}is-answered{% endif %}">
+                            <h3>{{ survey["title"] }}</h3>
+                            {% if survey["description"] %}
+                                <p>{{ survey["description"] }}</p>
+                            {% endif %}
+                            {% if survey["deadline_at"] %}
+                                <p>期限：{{ survey["deadline_at"] }}</p>
+                            {% endif %}
+                            {% if survey["answered"] %}
+                                <p>回答済み：{{ survey["response_value"] }}</p>
+                            {% else %}
+                                <p><strong>未回答です。</strong></p>
+                            {% endif %}
+                            <a class="survey-link" href="/survey/{{ survey['id'] }}?code={{ member['code'] }}">
+                                {% if survey["answered"] %}回答を確認・変更{% else %}回答する{% endif %}
+                            </a>
+                        </article>
+                    {% endfor %}
+                </section>
+            {% endif %}
             <section id="push-area" class="push-area" aria-label="通知設定">
                 <p class="push-title">通知設定</p>
                 <button id="push-subscribe-button" class="push-button" type="button">
@@ -366,14 +657,18 @@
             </form>
         </section>
 
-        <section class="register-qr-area" aria-label="職員登録用QRコード">
-            <p class="register-qr-title">他の職員の登録用QRコード</p>
-            <img class="register-qr-image" src="/register-qr.png" alt="職員登録用QRコード">
+        <section class="register-qr-area" aria-label="登録用QRコード">
+            <p class="register-qr-title">登録用QRコード</p>
+            <img class="register-qr-image" src="/register-qr.png" alt="登録用QRコード">
         </section>
     </main>
     <script>
         const vapidPublicKey = {{ vapid_public_key | tojson }};
         localStorage.setItem("emergency_member_code", {{ member["code"] | tojson }});
+
+        document.getElementById("reload-page-button").addEventListener("click", function () {
+            window.location.reload();
+        });
 
         const sentToast = document.getElementById("sent-toast");
         const currentUrl = new URL(window.location.href);

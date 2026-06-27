@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>アンケート集計</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #f4f6f8; color: #1f2933; font-family: sans-serif; font-size: 18px; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+        .button, button { display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 0 16px; border: 0; border-radius: 8px; background: #1f4f82; color: #fff; font: inherit; font-weight: bold; text-decoration: none; cursor: pointer; }
+        .notify { background: #c62828; }
+        .notice { margin-bottom: 16px; padding: 12px; border-radius: 8px; background: #e8f5e9; color: #1b5e20; font-weight: bold; }
+        .card { margin-bottom: 16px; padding: 14px; border: 1px solid #ccd5df; border-radius: 10px; background: white; }
+        table { width: 100%; border-collapse: collapse; background: white; margin-bottom: 16px; }
+        th, td { padding: 10px; border-bottom: 1px solid #ccd5df; text-align: left; vertical-align: top; }
+    </style>
+</head>
+<body>
+    <h1>{{ survey["title"] }}</h1>
+    {% if request.query_params.get("saved") == "1" %}
+        <div class="notice">保存しました。</div>
+    {% endif %}
+    {% if request.query_params.get("notify_success") is not none %}
+        <div class="notice">通知送信結果：成功 {{ request.query_params.get("notify_success") }} 件、失敗 {{ request.query_params.get("notify_failed") or "0" }} 件</div>
+    {% endif %}
+
+    <div class="toolbar">
+        <a class="button" href="/admin/surveys">一覧へ戻る</a>
+        <a class="button" href="/admin/surveys/{{ survey['id'] }}/export.csv">結果CSV出力</a>
+        <form method="post" action="/admin/surveys/{{ survey['id'] }}/notify" onsubmit="return confirm('対象グループへアンケート通知を送りますか？');">
+            <button class="notify" type="submit">対象グループへ通知</button>
+        </form>
+    </div>
+
+    <section class="card">
+        <p>対象種別：{{ target_type_label }}</p>
+        <p>対象：{{ target_label }}</p>
+        <p>形式：{{ response_type_label }}</p>
+        <p>期限：{{ survey["deadline_at"] or "なし" }}</p>
+        <form method="post" action="/admin/surveys/{{ survey['id'] }}/toggle">
+            <label>
+                <input type="checkbox" name="is_active" value="1" {% if survey["is_active"] == 1 %}checked{% endif %}>
+                有効
+            </label>
+            <button type="submit">状態を保存</button>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2>集計</h2>
+        <p>回答数 {{ summary["responses"]|length }} / 対象 {{ summary["target_members"]|length }}</p>
+        <p>未回答 {{ summary["unanswered"]|length }}</p>
+        {% for value, count in summary["counts"].items() %}
+            <p>{{ value }}：{{ count }}</p>
+        {% endfor %}
+    </section>
+
+    <h2>回答者一覧</h2>
+    <table>
+        <tr>
+            <th>名前</th>
+            <th>職種</th>
+            <th>回答</th>
+            <th>コメント</th>
+            <th>回答日時</th>
+        </tr>
+        {% for response in summary["responses"] %}
+            <tr>
+                <td>{{ response["name"] }}</td>
+                <td>{{ response["group_name"] }}</td>
+                <td>{{ response["response_value"] }}</td>
+                <td>{{ response["comment"] }}</td>
+                <td>{{ response["responded_at"] }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+
+    <h2>未回答者一覧</h2>
+    <table>
+        <tr>
+            <th>名前</th>
+            <th>職種</th>
+        </tr>
+        {% for member in summary["unanswered"] %}
+            <tr>
+                <td>{{ member["name"] }}</td>
+                <td>{{ member["group_name"] }}</td>
+            </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>

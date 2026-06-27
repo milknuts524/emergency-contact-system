@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>資料閲覧 管理</title>
+    <style>
+        body { margin: 0; padding: 20px; background: #f4f6f8; color: #1f2933; font-family: sans-serif; font-size: 18px; }
+        .card { margin-bottom: 18px; padding: 16px; border: 2px solid #d7dde5; border-radius: 12px; background: #fff; }
+        label { display: block; margin-bottom: 12px; font-weight: bold; }
+        input, textarea { width: 100%; margin-top: 6px; padding: 10px; border: 2px solid #9aa5b1; border-radius: 8px; box-sizing: border-box; font: inherit; }
+        textarea { min-height: 90px; }
+        .check { width: auto; }
+        .button, button { display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 14px; border: 0; border-radius: 8px; background: #1f4f82; color: #fff; font: inherit; font-weight: bold; text-decoration: none; cursor: pointer; }
+        .primary { background: #0f766e; }
+        .danger { background: #c62828; }
+        .notice { margin-bottom: 16px; padding: 12px; border-radius: 8px; background: #e8f5e9; color: #1b5e20; font-weight: bold; }
+        .error { margin-bottom: 16px; padding: 12px; border-radius: 8px; background: #ffebee; color: #b71c1c; font-weight: bold; }
+        .submit-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .upload-limits { color: #52606d; font-size: 15px; font-weight: bold; line-height: 1.5; }
+        table { width: 100%; border-collapse: collapse; background: #fff; }
+        th, td { padding: 10px; border-bottom: 1px solid #ccd5df; text-align: left; vertical-align: top; }
+        .inline-form { display: inline; }
+    </style>
+</head>
+<body>
+    <h1>{{ display_name }} 管理</h1>
+
+    {% if request.query_params.get("saved") == "1" %}
+        <div class="notice">保存しました。</div>
+    {% endif %}
+    {% if request.query_params.get("error") == "max" %}
+        <div class="error">登録できる資料は最大 {{ max_items }} 件です。</div>
+    {% endif %}
+    {% if request.query_params.get("error") == "size" %}
+        <div class="error">ファイルサイズは20MB以内にしてください。</div>
+    {% endif %}
+    {% if request.query_params.get("error") == "type" %}
+        <div class="error">PDF / PNG / JPG / JPEG / WebP のみ登録できます。</div>
+    {% endif %}
+
+    <p><a class="button" href="/admin">管理画面へ戻る</a></p>
+
+    <form class="card" method="post" action="/admin/viewer/settings">
+        <h2>表示名</h2>
+        <label>
+            セクション名
+            <input type="text" name="display_name" value="{{ display_name }}" required>
+        </label>
+        <button class="primary" type="submit">表示名を保存</button>
+    </form>
+
+    <form class="card" method="post" action="/admin/viewer/upload" enctype="multipart/form-data">
+        <h2>資料を追加</h2>
+        <label>
+            タイトル
+            <input type="text" name="title" required>
+        </label>
+        <label>
+            説明
+            <textarea name="description"></textarea>
+        </label>
+        <label>
+            並び順
+            <input type="number" name="sort_order" value="0">
+        </label>
+        <label>
+            ファイル
+            <input type="file" name="upload_file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" required>
+        </label>
+        <label>
+            <input class="check" type="checkbox" name="is_active" value="1" checked>
+            表示する
+        </label>
+        <div class="submit-row">
+            <button class="primary" type="submit">資料を追加</button>
+            <span class="upload-limits">対応形式：PDF / PNG / JPG / JPEG / WebP　上限：20MB　最大：{{ max_items }}件</span>
+        </div>
+    </form>
+
+    <section class="card">
+        <h2>登録済み資料</h2>
+        <table>
+            <tr>
+                <th>タイトル</th>
+                <th>説明</th>
+                <th>種類</th>
+                <th>順</th>
+                <th>表示</th>
+                <th>操作</th>
+            </tr>
+            {% for item in items %}
+                <tr>
+                    <td colspan="6">
+                        <form method="post" action="/admin/viewer/{{ item['id'] }}/update">
+                            <label>
+                                タイトル
+                                <input type="text" name="title" value="{{ item['title'] }}" required>
+                            </label>
+                            <label>
+                                説明
+                                <textarea name="description">{{ item["description"] or "" }}</textarea>
+                            </label>
+                            <label>
+                                並び順
+                                <input type="number" name="sort_order" value="{{ item['sort_order'] }}">
+                            </label>
+                            <p>種類：{{ item["file_type"] }}</p>
+                            <label>
+                                <input class="check" type="checkbox" name="is_active" value="1" {% if item["is_active"] == 1 %}checked{% endif %}>
+                                表示する
+                            </label>
+                            <a class="button" href="{% if item['file_type'] == 'pdf' %}/viewer/{{ item['id'] }}/file{% else %}/viewer/{{ item['id'] }}{% endif %}" target="_blank" rel="noopener">{% if item["file_type"] == "pdf" %}PDFを開く{% else %}画像を表示{% endif %}</a>
+                            <button class="primary" type="submit">保存</button>
+                        </form>
+                        <form class="inline-form" method="post" action="/admin/viewer/{{ item['id'] }}/delete" onsubmit="return confirm('この資料を削除しますか？');">
+                            <button class="danger" type="submit">削除</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+        </table>
+    </section>
+</body>
+</html>

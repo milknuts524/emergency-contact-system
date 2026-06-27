@@ -5,10 +5,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import asyncio
 import csv
+import importlib
 import io
 import json
 import os
 from pathlib import Path
+import re
 import sqlite3
 import secrets
 from datetime import datetime
@@ -106,10 +108,143 @@ ENV_FILE = Path(".env")
 CURRENT_URL_FILE = Path("current_url.txt")
 MANIFEST_FILE = Path("static/manifest.json")
 AUTO_EXPORT_DIR = Path("auto_exports")
+PLUGIN_DIR = Path("plugins")
 DEFAULT_APP_NAME = "Emergency Contact System"
 DEFAULT_APP_SHORT_NAME = "Emergency"
 DEFAULT_APP_ICON_PATH = "/static/icons/icon.svg"
 ALLOWED_ICON_EXTENSIONS = {".svg", ".png", ".jpg", ".jpeg"}
+
+
+def parse_enabled_plugins(value):
+    plugins = []
+    seen = set()
+    for name in (value or "").split(","):
+        name = name.strip()
+        if not name or name in seen:
+            continue
+        if not re.fullmatch(r"[a-zA-Z0-9_]+", name):
+            print(f"Skipping invalid plugin name: {name}")
+            continue
+        plugins.append(name)
+        seen.add(name)
+    return plugins
+
+
+def available_plugin_names():
+    if not PLUGIN_DIR.exists():
+        return []
+    names = []
+    for path in sorted(PLUGIN_DIR.iterdir()):
+        if not path.is_dir():
+            continue
+        if (path / "router.py").exists():
+            names.append(path.name)
+    return names
+
+
+def get_calendar_plugin_status():
+    try:
+        service = importlib.import_module("plugins.calendar.service")
+        return service.get_calendar_status()
+    except Exception:
+        return {
+            "ics_url": os.getenv("CALENDAR_ICS_URL", "").strip(),
+            "last_fetch_at": "",
+            "last_error": "",
+        }
+
+
+def is_plugin_enabled(plugin_name):
+    return plugin_name in ENABLED_PLUGINS
+
+
+def get_user_calendar_data():
+    if not is_plugin_enabled("calendar"):
+        return None
+    try:
+        calendar_service = importlib.import_module("plugins.calendar.service")
+        return calendar_service.fetch_calendar_events(days=7, include_later=True)
+    except Exception as exc:
+        print(f"Calendar plugin data failed: {exc}")
+        return {
+            "ok": False,
+            "error": "予定を取得できません",
+            "groups": [],
+            "last_fetch_at": "",
+            "ics_url": "",
+        }
+
+
+def get_member_plugin_surveys(conn, member):
+    if "survey" not in ENABLED_PLUGINS:
+        return []
+    try:
+        survey_service = importlib.import_module("plugins.survey.service")
+        survey_service.init_db(conn)
+        return survey_service.get_member_surveys(conn, member)
+    except Exception as exc:
+        print(f"Survey plugin data failed: {exc}")
+        return []
+
+
+def get_user_viewer_data():
+    if not is_plugin_enabled("viewer"):
+        return None
+    try:
+        viewer_service = importlib.import_module("plugins.viewer.service")
+        conn = get_conn()
+        try:
+            viewer_service.init_db(conn)
+            return {
+                "display_name": viewer_service.get_display_name(conn),
+                "items": [
+                    dict(item)
+                    for item in viewer_service.list_items(conn, active_only=True, limit=viewer_service.MAX_ITEMS)
+                ],
+            }
+        finally:
+            conn.close()
+    except Exception as exc:
+        print(f"Viewer plugin data failed: {exc}")
+        return None
+
+
+ENABLED_PLUGINS = parse_enabled_plugins(os.getenv("ENABLED_PLUGINS", ""))
+LOADED_PLUGINS = []
+
+
+def load_enabled_plugins():
+    for plugin_name in ENABLED_PLUGINS:
+        try:
+            module = importlib.import_module(f"plugins.{plugin_name}.router")
+            router = getattr(module, "router")
+            plugin_info = getattr(
+                module,
+                "PLUGIN",
+                {
+                    "name": plugin_name,
+                    "label": plugin_name,
+                    "url": "",
+                }
+            )
+            app.include_router(router)
+
+            static_dir = PLUGIN_DIR / plugin_name / "static"
+            if static_dir.exists():
+                app.mount(
+                    f"/plugins/{plugin_name}/static",
+                    StaticFiles(directory=str(static_dir)),
+                    name=f"plugin_{plugin_name}_static"
+                )
+
+            LOADED_PLUGINS.append({
+                "name": plugin_info.get("name", plugin_name),
+                "label": plugin_info.get("label", plugin_name),
+                "url": plugin_info.get("url", ""),
+            })
+            print(f"Plugin loaded: {plugin_name}")
+        except Exception as exc:
+            print(f"Plugin load failed: {plugin_name}: {exc}")
 
 
 def update_env_file(values):
@@ -273,6 +408,7 @@ def init_db():
         "auto_csv_export_enabled": "1",
         "auto_csv_export_last_at": "",
         "push_test_mode_enabled": "0",
+        "disaster_mode": "normal",
     }.items():
         cur.execute(
             """
@@ -369,6 +505,23 @@ def get_app_settings(conn):
         "auto_csv_export_last_at": get_setting(conn, "auto_csv_export_last_at", ""),
         "push_test_mode_enabled": get_setting(conn, "push_test_mode_enabled", "0"),
     }
+
+
+def get_disaster_mode(conn=None):
+    close_conn = False
+    if conn is None:
+        conn = get_conn()
+        close_conn = True
+    try:
+        mode = get_setting(conn, "disaster_mode", "normal")
+        return "disaster" if mode == "disaster" else "normal"
+    finally:
+        if close_conn:
+            conn.close()
+
+
+def set_disaster_mode(conn, mode):
+    set_setting(conn, "disaster_mode", "disaster" if mode == "disaster" else "normal")
 
 
 def get_current_app_name():
@@ -527,6 +680,37 @@ def assign_notification_groups(conn, member_id, group_names):
                     datetime.now().isoformat(timespec="seconds"),
                 )
             )
+
+
+def assign_matching_occupation_group(conn, member_id, occupation_name):
+    occupation_name = str(occupation_name or "").strip()
+    if not occupation_name or occupation_name == "全員":
+        return
+
+    group = conn.execute(
+        """
+        SELECT id
+        FROM notification_groups
+        WHERE name = ?
+          AND active = 1
+        """,
+        (occupation_name,)
+    ).fetchone()
+    if not group:
+        return
+
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO member_notification_groups
+            (member_id, group_id, created_at)
+        VALUES (?, ?, ?)
+        """,
+        (
+            member_id,
+            group["id"],
+            datetime.now().isoformat(timespec="seconds"),
+        )
+    )
 
 
 def notification_groups_by_member(conn, member_ids):
@@ -743,6 +927,7 @@ def read_current_dynamic_url():
 def get_public_url(request=None):
     conn = get_conn()
     current_dynamic_url = read_current_dynamic_url()
+    calendar_status = get_calendar_plugin_status()
     if current_dynamic_url:
         set_setting(conn, "current_dynamic_url", current_dynamic_url)
         conn.commit()
@@ -1286,6 +1471,7 @@ def register(
         """,
         (name, group_name, contact or None, code, datetime.now().isoformat(timespec="seconds"))
     )
+    assign_matching_occupation_group(conn, cur.lastrowid, group_name)
     conn.commit()
     conn.close()
 
@@ -1322,6 +1508,22 @@ def user_page(request: Request, code: str):
         LIMIT 1
     """, (member["id"], response_reset_at, response_reset_at)).fetchone()
     status_labels = get_status_labels(conn)
+    disaster_mode = get_disaster_mode(conn)
+    survey_items = get_member_plugin_surveys(conn, member)
+    calendar_enabled = is_plugin_enabled("calendar")
+    calendar_data = get_user_calendar_data()
+    viewer_data = get_user_viewer_data()
+    now = datetime.now().isoformat(timespec="minutes").replace("T", " ")
+    announcement_count = conn.execute(
+        """
+        SELECT COUNT(*) AS count
+        FROM announcements
+        WHERE published = 1
+          AND (published_from IS NULL OR published_from = '' OR published_from <= ?)
+          AND (published_until IS NULL OR published_until = '' OR published_until >= ?)
+        """,
+        (now, now)
+    ).fetchone()["count"]
 
     conn.close()
 
@@ -1334,6 +1536,12 @@ def user_page(request: Request, code: str):
             "vapid_public_key": VAPID_PUBLIC_KEY,
             "status_labels": status_labels,
             "debug_ui": DEBUG_UI,
+            "disaster_mode": disaster_mode,
+            "survey_items": survey_items,
+            "calendar_enabled": calendar_enabled,
+            "calendar_data": calendar_data,
+            "viewer_data": viewer_data,
+            "announcement_count": announcement_count,
         }
     )
 
@@ -1451,6 +1659,19 @@ def admin_delete_member(
     conn.close()
 
     return RedirectResponse("/admin", status_code=303)
+
+
+@app.post("/admin/mode")
+def admin_change_mode(
+    mode: str = Form(...),
+    authorized: bool = Depends(check_admin)
+):
+    conn = get_conn()
+    set_disaster_mode(conn, mode)
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse("/admin?mode_saved=1", status_code=303)
 
 
 @app.post("/admin/member/{member_id}/occupation-memo")
@@ -2343,6 +2564,7 @@ def admin_settings(request: Request, authorized: bool = Depends(check_admin)):
         current_dynamic_url = get_setting(conn, "current_dynamic_url", "")
     conn.close()
     active_public_url = get_public_url(request)
+    calendar_status = get_calendar_plugin_status()
 
     return templates.TemplateResponse(
         request,
@@ -2361,6 +2583,10 @@ def admin_settings(request: Request, authorized: bool = Depends(check_admin)):
             "current_dynamic_url": current_dynamic_url,
             "active_public_url": active_public_url,
             "app_settings": app_settings,
+            "enabled_plugins_text": ",".join(ENABLED_PLUGINS),
+            "loaded_plugins": LOADED_PLUGINS,
+            "available_plugins": available_plugin_names(),
+            "calendar_status": calendar_status,
         }
     )
 
@@ -2477,6 +2703,47 @@ def save_push_test_mode_settings(
     return RedirectResponse("/admin/settings?push_test_mode_saved=1", status_code=303)
 
 
+@app.post("/admin/settings/plugins")
+def save_plugin_settings(
+    enabled_plugins_text: str = Form(""),
+    authorized: bool = Depends(check_admin)
+):
+    global ENABLED_PLUGINS
+
+    enabled_plugins = parse_enabled_plugins(enabled_plugins_text)
+    available = set(available_plugin_names())
+    invalid_plugins = [
+        plugin_name
+        for plugin_name in enabled_plugins
+        if plugin_name not in available
+    ]
+    if invalid_plugins:
+        return RedirectResponse("/admin/settings?plugin_error=invalid", status_code=303)
+
+    plugins_value = ",".join(enabled_plugins)
+    update_env_file({
+        "ENABLED_PLUGINS": plugins_value,
+    })
+    os.environ["ENABLED_PLUGINS"] = plugins_value
+    ENABLED_PLUGINS = enabled_plugins
+
+    return RedirectResponse("/admin/settings?plugins_saved=1", status_code=303)
+
+
+@app.post("/admin/settings/calendar")
+def save_calendar_settings(
+    calendar_ics_url: str = Form(""),
+    authorized: bool = Depends(check_admin)
+):
+    calendar_ics_url = calendar_ics_url.strip()
+    update_env_file({
+        "CALENDAR_ICS_URL": calendar_ics_url,
+    })
+    os.environ["CALENDAR_ICS_URL"] = calendar_ics_url
+
+    return RedirectResponse("/admin/settings?calendar_saved=1", status_code=303)
+
+
 @app.post("/admin/settings/access")
 def save_access_settings(
     admin_user: str = Form(...),
@@ -2533,6 +2800,65 @@ def save_vapid_settings(
     VAPID_CLAIMS = {"sub": vapid_claims_sub}
 
     return RedirectResponse("/admin/settings?vapid_saved=1", status_code=303)
+
+
+@app.post("/admin/settings/reset")
+def reset_settings(
+    authorized: bool = Depends(check_admin)
+):
+    global ADMIN_USER, ADMIN_PASSWORD, REGISTRATION_PASSWORD
+    global VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_PRIVATE_KEY_FILE, VAPID_CLAIMS
+    global ENABLED_PLUGINS
+
+    default_settings = {
+        "occupation_list": json.dumps(DEFAULT_OCCUPATIONS, ensure_ascii=False),
+        "public_url_mode": "dynamic",
+        "fixed_public_url": "",
+        "current_dynamic_url": "",
+        "response_reset_at": "",
+        "status_label_fine": "元気です",
+        "status_label_trouble": "困っています",
+        "status_label_help": "助けてください",
+        "app_name": DEFAULT_APP_NAME,
+        "app_short_name": DEFAULT_APP_SHORT_NAME,
+        "app_icon_path": DEFAULT_APP_ICON_PATH,
+        "auto_csv_export_enabled": "1",
+        "auto_csv_export_last_at": "",
+        "push_test_mode_enabled": "0",
+        "disaster_mode": "normal",
+    }
+
+    conn = get_conn()
+    for key, value in default_settings.items():
+        set_setting(conn, key, value)
+    conn.commit()
+    conn.close()
+
+    update_env_file({
+        "ADMIN_USER": "admin",
+        "ADMIN_PASSWORD": "OnlyYourPassword2026!",
+        "REGISTRATION_PASSWORD": "ChangeMe",
+        "VAPID_PUBLIC_KEY": "",
+        "VAPID_PRIVATE_KEY": "",
+        "VAPID_PRIVATE_KEY_FILE": "vapid_private_key.pem",
+        "VAPID_CLAIMS_SUB": "mailto:admin@example.com",
+        "ENABLED_PLUGINS": "",
+        "CALENDAR_ICS_URL": "",
+    })
+
+    ADMIN_USER = "admin"
+    ADMIN_PASSWORD = "OnlyYourPassword2026!"
+    REGISTRATION_PASSWORD = "ChangeMe"
+    VAPID_PUBLIC_KEY = ""
+    VAPID_PRIVATE_KEY = ""
+    VAPID_PRIVATE_KEY_FILE = "vapid_private_key.pem"
+    VAPID_CLAIMS = {"sub": "mailto:admin@example.com"}
+    ENABLED_PLUGINS = []
+    os.environ["ENABLED_PLUGINS"] = ""
+    os.environ["CALENDAR_ICS_URL"] = ""
+
+    write_manifest(DEFAULT_APP_NAME, DEFAULT_APP_SHORT_NAME, DEFAULT_APP_ICON_PATH)
+    return RedirectResponse("/admin/settings?reset=1", status_code=303)
 
 
 @app.post("/admin/settings/public-url")
@@ -2595,7 +2921,7 @@ def register_qr(request: Request):
 @app.get("/admin")
 def admin(
     request: Request,
-    sort: str = "status",
+    sort: str = "occupation",
     direction: str = "asc",
     authorized: bool = Depends(check_admin)
 ):
@@ -2605,6 +2931,7 @@ def admin(
     push_templates = get_active_push_templates(conn)
     app_settings = get_app_settings(conn)
     announcements = get_announcements_for_admin(conn, limit=5)
+    disaster_mode = get_disaster_mode(conn)
     push_test_mode_enabled = app_settings["push_test_mode_enabled"] == "1"
     push_subscriptions = (
         get_push_subscriptions_for_admin(conn)
@@ -2615,6 +2942,8 @@ def admin(
     conn.close()
 
     public_url = get_public_url(request)
+    calendar_status = get_calendar_plugin_status()
+    calendar_enabled = is_plugin_enabled("calendar")
 
     return templates.TemplateResponse(
         request,
@@ -2630,6 +2959,10 @@ def admin(
             "announcements": announcements,
             "push_subscriptions": push_subscriptions,
             "push_test_mode_enabled": push_test_mode_enabled,
+            "disaster_mode": disaster_mode,
+            "enabled_plugins": LOADED_PLUGINS,
+            "calendar_enabled": calendar_enabled,
+            "calendar_status": calendar_status,
             "public_url": public_url,
             "sort": sort,
             "direction": direction,
@@ -2674,3 +3007,6 @@ def export_responses_csv(authorized: bool = Depends(check_admin)):
         RESPONSES_CSV_FIELDNAMES,
         rows
     )
+
+
+load_enabled_plugins()
