@@ -36,6 +36,49 @@
             border-radius: 8px;
             background: #fff7e6;
         }
+        .push-test-box {
+            margin-bottom: 20px;
+            padding: 14px;
+            border: 1px solid #ccd5df;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+        .endpoint-text {
+            max-width: 360px;
+            word-break: break-all;
+            font-size: 13px;
+            color: #52606d;
+        }
+        .test-button {
+            padding: 8px 10px;
+            border: none;
+            border-radius: 6px;
+            background: #1f4f82;
+            color: white;
+            font: inherit;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .diagnostic {
+            margin-bottom: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #eef2f7;
+        }
+        .diagnostic pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .android-check {
+            margin: 12px 0 0;
+            padding: 12px;
+            border-radius: 8px;
+            background: #fff7e6;
+        }
+        .android-check ul {
+            margin: 8px 0 0;
+            padding-left: 20px;
+        }
         .public-url-box {
             display: grid;
             grid-template-columns: minmax(0, 1fr) auto;
@@ -147,7 +190,7 @@
             align-items: center;
         }
         .memo-form input {
-            width: 9em;
+            width: 5.5em;
             min-width: 0;
             padding: 7px;
             border: 1px solid #9aa5b1;
@@ -330,8 +373,44 @@
             対象人数 {{ request.query_params.get("push_members") or "0" }} 人、
             Push購読 {{ request.query_params.get("push_subscriptions") or "0" }} 件、
             成功 {{ request.query_params.get("push_success") }} 件、
-            失敗 {{ request.query_params.get("push_failed") }} 件
+            失敗 {{ request.query_params.get("push_failed") }} 件<br>
+            Apple 成功 {{ request.query_params.get("push_apple_success") or "0" }} 件 / 失敗 {{ request.query_params.get("push_apple_failed") or "0" }} 件、
+            FCM 成功 {{ request.query_params.get("push_fcm_success") or "0" }} 件 / 失敗 {{ request.query_params.get("push_fcm_failed") or "0" }} 件、
+            その他 成功 {{ request.query_params.get("push_other_success") or "0" }} 件 / 失敗 {{ request.query_params.get("push_other_failed") or "0" }} 件
         </div>
+    {% endif %}
+    {% if request.query_params.get("push_vapid_warning") == "1" %}
+        <div class="error">403 Forbidden がありました。VAPID鍵の不整合、またはVAPID claimsの設定不備の可能性があります。</div>
+    {% endif %}
+    {% if request.query_params.get("push_test") == "1" %}
+        <div class="diagnostic">
+            <strong>Push送信テスト結果：</strong>
+            {% if request.query_params.get("push_test_ok") == "1" %}成功{% else %}失敗{% endif %}
+            <br>
+            endpoint種別：{{ request.query_params.get("push_test_type") or "" }}<br>
+            HTTP status code：{{ request.query_params.get("push_test_status") or "" }}<br>
+            exception class：{{ request.query_params.get("push_test_exception") or "" }}<br>
+            exception message：{{ request.query_params.get("push_test_message") or "" }}
+            {% if request.query_params.get("push_test_vapid_warning") == "1" %}
+                <div class="error">403 Forbidden です。VAPID鍵不整合の可能性があります。</div>
+            {% endif %}
+            <p>response body</p>
+            <pre>{{ request.query_params.get("push_test_body") or "" }}</pre>
+            {% if request.query_params.get("push_test_type") == "fcm" and request.query_params.get("push_test_status") == "201" and request.query_params.get("push_test_ok") == "1" %}
+                <div class="android-check">
+                    FCMは成功しています。端末に表示されない場合はAndroid側を確認してください。
+                    <ul>
+                        <li>Android設定 &gt; アプリ &gt; Chrome &gt; 通知 が許可されているか</li>
+                        <li>Chromeのサイト設定 &gt; 通知 が許可されているか</li>
+                        <li>省電力設定でChromeが制限されていないか</li>
+                        <li>PWAをホーム画面に追加している場合は、そのアプリ通知も許可されているか</li>
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    {% endif %}
+    {% if request.query_params.get("push_test_error") == "missing" %}
+        <div class="error">テスト対象のPush購読が見つかりません。</div>
     {% endif %}
     {% if request.query_params.get("push_error") == "target" %}
         <div class="error">送信対象の通知グループが見つかりません。</div>
@@ -432,6 +511,40 @@
             </div>
         </form>
     </div>
+
+    {% if push_test_mode_enabled %}
+        <div class="push-test-box">
+            <h2>Push送信テスト</h2>
+            {% if push_subscriptions %}
+                <table>
+                    <tr>
+                        <th>名前</th>
+                        <th>職種</th>
+                        <th>endpoint種別</th>
+                        <th>created_at</th>
+                        <th>endpoint</th>
+                        <th>テスト</th>
+                    </tr>
+                    {% for subscription in push_subscriptions %}
+                        <tr>
+                            <td>{{ subscription["name"] }}</td>
+                            <td>{{ subscription["group_name"] or "" }}</td>
+                            <td>{{ subscription["endpoint_type"] }}</td>
+                            <td>{{ subscription["created_at"] or "" }}</td>
+                            <td class="endpoint-text">{{ subscription["endpoint"] }}</td>
+                            <td>
+                                <form method="post" action="/admin/push/test/{{ subscription['id'] }}">
+                                    <button class="test-button" type="submit">この端末へテスト送信</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </table>
+            {% else %}
+                <p>有効なPush購読はありません。</p>
+            {% endif %}
+        </div>
+    {% endif %}
 
     <div class="response-rate-box">
         <div class="response-rate-header">
@@ -537,7 +650,7 @@
             <td><a href="/user/{{ m['code'] }}">{{ m["code"] }}</a></td>
             <td>
                 <form method="post" action="/admin/member/{{ m['id'] }}/delete"
-                      onsubmit="return confirm('この登録を削除しますか？');">
+                      onsubmit="return confirm('この登録と関連データを完全に削除しますか？');">
                     <button type="submit">削除</button>
                 </form>
             </td>

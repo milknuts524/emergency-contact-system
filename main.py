@@ -271,6 +271,7 @@ def init_db():
         "app_icon_path": DEFAULT_APP_ICON_PATH,
         "auto_csv_export_enabled": "1",
         "auto_csv_export_last_at": "",
+        "push_test_mode_enabled": "0",
     }.items():
         cur.execute(
             """
@@ -365,6 +366,7 @@ def get_app_settings(conn):
         "app_icon_path": get_setting(conn, "app_icon_path", DEFAULT_APP_ICON_PATH),
         "auto_csv_export_enabled": get_setting(conn, "auto_csv_export_enabled", "1"),
         "auto_csv_export_last_at": get_setting(conn, "auto_csv_export_last_at", ""),
+        "push_test_mode_enabled": get_setting(conn, "push_test_mode_enabled", "0"),
     }
 
 
@@ -1019,12 +1021,27 @@ def import_members_from_csv(content):
 
 
 def send_push_notification(subscription, title, body, url="/"):
+    result = {
+        "ok": False,
+        "error": "",
+        "endpoint_type": endpoint_type(subscription["endpoint"]),
+        "status_code": "",
+        "response_body": "",
+        "exception_class": "",
+        "exception_message": "",
+        "inactive": False,
+        "vapid_warning": False,
+    }
     vapid_private_key = VAPID_PRIVATE_KEY_FILE or VAPID_PRIVATE_KEY
     if webpush is None or not vapid_private_key:
-        return False, "pywebpush or VAPID private key is not configured"
+        result["error"] = "pywebpush or VAPID private key is not configured"
+        result["exception_message"] = result["error"]
+        return result
 
     if not str(VAPID_CLAIMS.get("sub", "")).startswith("mailto:"):
-        return False, "VAPID_CLAIMS sub must be a mailto: address"
+        result["error"] = "VAPID_CLAIMS sub must be a mailto: address"
+        result["exception_message"] = result["error"]
+        return result
 
     subscription_info = {
         "endpoint": subscription["endpoint"],
@@ -1034,30 +1051,109 @@ def send_push_notification(subscription, title, body, url="/"):
         }
     }
     payload = {
-        "title": title,
-        "body": body,
+        "title": title or "院内緊急連絡",
+        "body": body or "安否確認をお願いします",
         "url": url,
     }
     vapid_claims = dict(VAPID_CLAIMS)
 
     try:
-        webpush(
+        response = webpush(
             subscription_info=subscription_info,
             data=json.dumps(payload),
             vapid_private_key=vapid_private_key,
             vapid_claims=vapid_claims,
         )
-        return True, ""
+        if response is not None:
+            result["status_code"] = getattr(response, "status_code", "")
+            result["response_body"] = getattr(response, "text", "")
+        result["ok"] = True
+        return result
     except WebPushException as exc:
+        result["exception_class"] = exc.__class__.__name__
+        result["exception_message"] = str(exc)
         response = getattr(exc, "response", None)
         if response is not None:
-            return False, (
-                f"{repr(exc)} status={response.status_code} "
-                f"body={response.text}"
+            result["status_code"] = getattr(response, "status_code", "")
+            result["response_body"] = getattr(response, "text", "")
+            print(
+                "[push] WebPushException "
+                f"endpoint_type={result['endpoint_type']} "
+                f"status={result['status_code']} "
+                f"body={result['response_body']}"
             )
-        return False, repr(exc)
+            if result["status_code"] in (404, 410):
+                result["inactive"] = True
+            if result["status_code"] == 403:
+                result["vapid_warning"] = True
+        result["error"] = repr(exc)
+        return result
     except Exception as exc:
-        return False, repr(exc)
+        result["exception_class"] = exc.__class__.__name__
+        result["exception_message"] = str(exc)
+        result["error"] = repr(exc)
+        return result
+
+
+def endpoint_type(endpoint):
+    endpoint = endpoint or ""
+    if "web.push.apple.com" in endpoint:
+        return "apple"
+    if "fcm.googleapis.com" in endpoint or "firebaseinstallations.googleapis.com" in endpoint:
+        return "fcm"
+    return "other"
+
+
+def deactivate_push_subscription(conn, subscription_id):
+    conn.execute(
+        "UPDATE push_subscriptions SET active = 0 WHERE id = ?",
+        (subscription_id,)
+    )
+
+
+def get_push_subscriptions_for_admin(conn):
+    rows = conn.execute(
+        """
+        SELECT
+            ps.id,
+            ps.endpoint,
+            ps.created_at,
+            ps.active,
+            m.name,
+            m.group_name
+        FROM push_subscriptions ps
+        JOIN members m ON m.id = ps.member_id
+        WHERE ps.active = 1
+          AND m.active = 1
+        ORDER BY m.group_name, m.name, ps.created_at DESC
+        """
+    ).fetchall()
+
+    subscriptions = []
+    for row in rows:
+        item = dict(row)
+        item["endpoint_type"] = endpoint_type(item["endpoint"])
+        subscriptions.append(item)
+    return subscriptions
+
+
+def delete_member_completely(conn, member_id):
+    conn.execute(
+        "DELETE FROM push_subscriptions WHERE member_id = ?",
+        (member_id,)
+    )
+    conn.execute(
+        "DELETE FROM member_notification_groups WHERE member_id = ?",
+        (member_id,)
+    )
+    conn.execute(
+        "DELETE FROM responses WHERE member_id = ?",
+        (member_id,)
+    )
+    conn.execute(
+        "DELETE FROM members WHERE id = ?",
+        (member_id,)
+    )
 
 
 @app.get("/")
@@ -1294,10 +1390,12 @@ def respond(
 @app.post("/user/{code}/deactivate")
 def deactivate(code: str):
     conn = get_conn()
-    conn.execute(
-        "UPDATE members SET active = 0 WHERE code = ?",
+    member = conn.execute(
+        "SELECT id FROM members WHERE code = ?",
         (code,)
-    )
+    ).fetchone()
+    if member:
+        delete_member_completely(conn, member["id"])
     conn.commit()
     conn.close()
 
@@ -1312,10 +1410,7 @@ def admin_delete_member(
     authorized: bool = Depends(check_admin)
 ):
     conn = get_conn()
-    conn.execute(
-        "UPDATE members SET active = 0 WHERE id = ?",
-        (member_id,)
-    )
+    delete_member_completely(conn, member_id)
     conn.commit()
     conn.close()
 
@@ -1990,27 +2085,43 @@ def admin_send_push(
 
     success = 0
     failed = 0
+    endpoint_stats = {
+        "apple": {"success": 0, "failed": 0},
+        "fcm": {"success": 0, "failed": 0},
+        "other": {"success": 0, "failed": 0},
+    }
+    vapid_warning = False
     errors = []
     public_url = get_public_url(request)
     payload_url = f"{public_url}/" if public_url else "/"
     print(f"[push] target endpoints: {len(subscriptions)}")
     for subscription in subscriptions:
-        ok, error = send_push_notification(
+        result = send_push_notification(
             subscription,
             title,
             body,
             payload_url
         )
-        if ok:
+        kind = result["endpoint_type"]
+        if kind not in endpoint_stats:
+            kind = "other"
+        if result["ok"]:
             success += 1
+            endpoint_stats[kind]["success"] += 1
         else:
             failed += 1
-            errors.append((subscription["endpoint"], error))
+            endpoint_stats[kind]["failed"] += 1
+            errors.append((subscription["endpoint"], result["error"]))
+            if result["inactive"]:
+                deactivate_push_subscription(conn, subscription["id"])
+            if result["vapid_warning"]:
+                vapid_warning = True
 
     print(f"[push] success: {success}, failed: {failed}")
     for endpoint, error in errors:
         print(f"[push] failed endpoint={endpoint} error={error}")
 
+    conn.commit()
     conn.close()
 
     return RedirectResponse(
@@ -2019,6 +2130,63 @@ def admin_send_push(
             f"&push_target={quote(target_label)}"
             f"&push_members={target_member_count}"
             f"&push_subscriptions={len(subscriptions)}"
+            f"&push_apple_success={endpoint_stats['apple']['success']}"
+            f"&push_apple_failed={endpoint_stats['apple']['failed']}"
+            f"&push_fcm_success={endpoint_stats['fcm']['success']}"
+            f"&push_fcm_failed={endpoint_stats['fcm']['failed']}"
+            f"&push_other_success={endpoint_stats['other']['success']}"
+            f"&push_other_failed={endpoint_stats['other']['failed']}"
+            f"&push_vapid_warning={1 if vapid_warning else 0}"
+        ),
+        status_code=303
+    )
+
+
+@app.post("/admin/push/test/{subscription_id}")
+def admin_send_push_test(
+    request: Request,
+    subscription_id: int,
+    authorized: bool = Depends(check_admin)
+):
+    conn = get_conn()
+    subscription = conn.execute(
+        """
+        SELECT ps.*, m.name, m.group_name, m.code
+        FROM push_subscriptions ps
+        JOIN members m ON m.id = ps.member_id
+        WHERE ps.id = ?
+          AND ps.active = 1
+          AND m.active = 1
+        """,
+        (subscription_id,)
+    ).fetchone()
+    if not subscription:
+        conn.close()
+        return RedirectResponse("/admin?push_test_error=missing", status_code=303)
+
+    public_url = get_public_url(request)
+    payload_url = f"{public_url}/" if public_url else "/"
+    result = send_push_notification(
+        subscription,
+        "Push送信テスト",
+        "この端末へのテスト通知です。",
+        payload_url,
+    )
+    if result["inactive"]:
+        deactivate_push_subscription(conn, subscription_id)
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(
+        (
+            f"/admin?push_test=1"
+            f"&push_test_ok={1 if result['ok'] else 0}"
+            f"&push_test_type={quote(result['endpoint_type'])}"
+            f"&push_test_status={quote(str(result['status_code']))}"
+            f"&push_test_body={quote(str(result['response_body'])[:500])}"
+            f"&push_test_exception={quote(result['exception_class'])}"
+            f"&push_test_message={quote(result['exception_message'][:500])}"
+            f"&push_test_vapid_warning={1 if result['vapid_warning'] else 0}"
         ),
         status_code=303
     )
@@ -2157,6 +2325,23 @@ def save_auto_csv_settings(
     return RedirectResponse("/admin/settings?auto_csv_saved=1", status_code=303)
 
 
+@app.post("/admin/settings/push-test-mode")
+def save_push_test_mode_settings(
+    push_test_mode_enabled: str = Form(None),
+    authorized: bool = Depends(check_admin)
+):
+    conn = get_conn()
+    set_setting(
+        conn,
+        "push_test_mode_enabled",
+        "1" if push_test_mode_enabled == "1" else "0"
+    )
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse("/admin/settings?push_test_mode_saved=1", status_code=303)
+
+
 @app.post("/admin/settings/access")
 def save_access_settings(
     admin_user: str = Form(...),
@@ -2267,6 +2452,13 @@ def admin(
     dashboard_data = build_response_dashboard_data(conn, sort, direction)
     notification_groups = list_notification_groups(conn, active_only=True)
     push_templates = get_active_push_templates(conn)
+    app_settings = get_app_settings(conn)
+    push_test_mode_enabled = app_settings["push_test_mode_enabled"] == "1"
+    push_subscriptions = (
+        get_push_subscriptions_for_admin(conn)
+        if push_test_mode_enabled
+        else []
+    )
 
     conn.close()
 
@@ -2283,6 +2475,8 @@ def admin(
             "status_labels": dashboard_data["status_labels"],
             "notification_groups": notification_groups,
             "push_templates": push_templates,
+            "push_subscriptions": push_subscriptions,
+            "push_test_mode_enabled": push_test_mode_enabled,
             "public_url": public_url,
             "sort": sort,
             "direction": direction,

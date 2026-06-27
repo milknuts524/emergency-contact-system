@@ -181,6 +181,20 @@
             font-size: 20px;
         }
 
+        .reset-local-button {
+            margin-top: 14px;
+            background: #6b7280;
+            font-size: 18px;
+            min-height: 54px;
+        }
+
+        .reset-local-message {
+            margin: 8px 0 0;
+            color: #52606d;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
         .pwa-only {
             display: none;
         }
@@ -256,7 +270,11 @@
                 <li>追加後、ホーム画面のアイコンから開きます。</li>
             </ol>
             <p>Androidでインストール可能な場合は、下に「インストール」ボタンが表示されます。</p>
+            <p>ホーム画面のアイコンを削除しても、Chrome内に登録情報や通知設定が残る場合があります。再登録できない、または「ホーム画面に追加」が出ない場合は、下の「端末内の登録情報を消去」を押してからページを再読み込みしてください。</p>
+            <p>Push通知が届かない場合は、Android設定のChrome通知、Chromeのサイト設定の通知、このPWAアプリの通知、省電力設定を確認してください。</p>
             <button id="install-app-button" class="install-button" type="button">インストール</button>
+            <button id="reset-local-button" class="reset-local-button" type="button">端末内の登録情報を消去</button>
+            <p id="reset-local-message" class="reset-local-message"></p>
         </section>
 
         <section class="pwa-only">
@@ -312,6 +330,8 @@
     <script>
         let deferredInstallPrompt = null;
         const installButton = document.getElementById("install-app-button");
+        const resetLocalButton = document.getElementById("reset-local-button");
+        const resetLocalMessage = document.getElementById("reset-local-message");
         const savedMemberCode = localStorage.getItem("emergency_member_code");
         const contactInput = document.querySelector('input[name="contact"]');
 
@@ -351,6 +371,30 @@
         window.addEventListener("appinstalled", function () {
             deferredInstallPrompt = null;
             installButton.style.display = "none";
+        });
+
+        resetLocalButton.addEventListener("click", async function () {
+            localStorage.removeItem("emergency_member_code");
+            document.cookie = "member_code=; Max-Age=0; path=/; SameSite=Lax";
+
+            try {
+                if ("serviceWorker" in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(registrations.map(function (registration) {
+                        return registration.unregister();
+                    }));
+                }
+                if ("caches" in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(function (key) {
+                        return caches.delete(key);
+                    }));
+                }
+            } catch (error) {
+                console.warn("Local reset failed", error);
+            }
+
+            resetLocalMessage.textContent = "端末内の登録情報を消去しました。ページを再読み込みしてから、必要に応じてホーム画面へ追加してください。";
         });
 
         const notificationButton = document.getElementById("notification-permission-button");

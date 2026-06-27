@@ -1,4 +1,4 @@
-const CACHE_NAME = "emergency-contact-v2";
+const CACHE_NAME = "emergency-contact-v4";
 const APP_SHELL = [
   "/",
   "/static/manifest.json",
@@ -38,29 +38,56 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   const fallback = {
-    title: "緊急連絡",
-    body: "安否確認をお願いします。",
+    title: "院内緊急連絡",
+    body: "通知を受信しました",
     url: "/"
   };
-  let data = fallback;
-  if (event.data) {
+
+  const showPushNotification = async () => {
+    let data = {};
+
     try {
-      data = event.data.json();
+      if (event.data) {
+        data = event.data.json();
+      }
     } catch (error) {
-      data = fallback;
+      data = {};
     }
-  }
-  const title = data.title || fallback.title;
-  const options = {
-    body: data.body || fallback.body,
-    icon: "/static/icons/icon.svg",
-    badge: "/static/icons/maskable-icon.svg",
-    data: {
-      url: data.url || fallback.url
+
+    if (!data || typeof data !== "object") {
+      data = {};
     }
+
+    const title = String(data.title || "").trim() || fallback.title;
+    const body = String(data.body || "").trim() || fallback.body;
+    const url = String(data.url || "").trim() || fallback.url;
+
+    return self.registration.showNotification(title, {
+      body,
+      icon: "/static/icons/icon.svg",
+      badge: "/static/icons/maskable-icon.svg",
+      data: { url }
+    });
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(showPushNotification());
+});
+
+self.addEventListener("message", (event) => {
+  if (!event.data || event.data.type !== "SHOW_TEST_NOTIFICATION") {
+    return;
+  }
+
+  const notificationPromise = self.registration.showNotification("端末通知テスト", {
+    body: "この通知が表示されれば、端末の通知表示は有効です。",
+    icon: "/static/icons/icon.svg",
+    badge: "/static/icons/maskable-icon.svg",
+    data: { url: "/" }
+  });
+
+  if (event.waitUntil) {
+    event.waitUntil(notificationPromise);
+  }
 });
 
 self.addEventListener("notificationclick", (event) => {
@@ -71,14 +98,16 @@ self.addEventListener("notificationclick", (event) => {
 
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      const absoluteUrl = new URL(url, self.location.origin).href;
+
       for (const client of clientList) {
-        if (client.url === url && "focus" in client) {
+        if (client.url === absoluteUrl && "focus" in client) {
           return client.focus();
         }
       }
 
       if (clients.openWindow) {
-        return clients.openWindow(url);
+        return clients.openWindow(absoluteUrl);
       }
       return undefined;
     })

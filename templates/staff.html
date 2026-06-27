@@ -67,10 +67,21 @@
             background: #ffffff;
             font-weight: 800;
         }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 16px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: #1f4f82;
+            color: #ffffff;
+            font-weight: 800;
+            text-decoration: none;
+        }
     </style>
 </head>
 <body>
     <main>
+        <a class="back-link" href="javascript:history.back()">戻る</a>
         <h1>職員向けお知らせ</h1>
 
         {% if announcements %}

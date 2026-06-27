@@ -159,6 +159,9 @@
         {% if request.query_params.get("auto_csv_saved") == "1" %}
             <div class="notice">CSV自動書き出し設定を保存しました。</div>
         {% endif %}
+        {% if request.query_params.get("push_test_mode_saved") == "1" %}
+            <div class="notice">Pushテストモード設定を保存しました。</div>
+        {% endif %}
 
         <form class="settings-card" method="post" action="/admin/settings/app" enctype="multipart/form-data">
             <h2>アプリ表示設定</h2>
@@ -196,6 +199,17 @@
             <p class="help">保存先：auto_exports/</p>
             <p class="help">最終書き出し：{{ app_settings['auto_csv_export_last_at'] or "未実行" }}</p>
             <button type="submit">CSV自動書き出し設定を保存</button>
+        </form>
+
+        <form class="settings-card" method="post" action="/admin/settings/push-test-mode">
+            <h2>Pushテストモード</h2>
+            <label>
+                <input type="checkbox" name="push_test_mode_enabled" value="1"
+                       {% if app_settings['push_test_mode_enabled'] == '1' %}checked{% endif %}>
+                管理画面にPush送信テストを表示する
+            </label>
+            <p class="help">AndroidやiPhoneの通知不達を切り分ける時だけONにします。</p>
+            <button type="submit">Pushテストモード設定を保存</button>
         </form>
 
         <form class="settings-card" method="post" action="/admin/settings/occupations">

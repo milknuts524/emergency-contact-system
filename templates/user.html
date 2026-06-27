@@ -242,6 +242,30 @@
             display: none;
         }
 
+        .diagnostic-area {
+            margin-bottom: 20px;
+            padding: 16px;
+            border: 2px solid #d7dde5;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        .diagnostic-button {
+            min-height: 54px;
+            padding: 12px;
+            background: #374151;
+            color: #ffffff;
+            font-size: 18px;
+            box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
+        }
+
+        .diagnostic-message {
+            margin: 8px 0 0;
+            color: #52606d;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
         .remove-button {
             min-height: 50px;
             padding: 12px;
@@ -283,6 +307,13 @@
                 通知を許可
             </button>
             <p id="push-subscribe-message" class="push-message"></p>
+        </section>
+
+        <section class="diagnostic-area" aria-label="通知診断">
+            <button id="local-notification-test-button" class="diagnostic-button" type="button">
+                端末通知テスト
+            </button>
+            <p id="local-notification-test-message" class="diagnostic-message"></p>
         </section>
 
         <section class="status-box" aria-label="現在の状態">
@@ -382,6 +413,18 @@
         const pushButton = document.getElementById("push-subscribe-button");
         const pushMessage = document.getElementById("push-subscribe-message");
         const pushArea = document.getElementById("push-area");
+        const localNotificationTestButton = document.getElementById("local-notification-test-button");
+        const localNotificationTestMessage = document.getElementById("local-notification-test-message");
+
+        async function savePushSubscription(subscription) {
+            return fetch("/user/{{ member['code'] }}/push-subscribe", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(subscription)
+            });
+        }
 
         async function hidePushAreaIfSubscribed() {
             if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -392,7 +435,10 @@
                 const registration = await navigator.serviceWorker.ready;
                 const subscription = await registration.pushManager.getSubscription();
                 if (subscription) {
-                    pushArea.classList.add("is-hidden");
+                    const response = await savePushSubscription(subscription);
+                    if (response.ok) {
+                        pushArea.classList.add("is-hidden");
+                    }
                 }
             } catch (error) {
                 console.warn("Push subscription check failed", error);
@@ -419,18 +465,15 @@
             }
 
             const registration = await navigator.serviceWorker.ready;
-            const subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
-            });
+            let subscription = await registration.pushManager.getSubscription();
+            if (!subscription) {
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+                });
+            }
 
-            const response = await fetch("/user/{{ member['code'] }}/push-subscribe", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(subscription)
-            });
+            const response = await savePushSubscription(subscription);
 
             if (response.ok) {
                 pushMessage.textContent = "通知登録済み";
@@ -440,6 +483,40 @@
                 }, 900);
             } else {
                 pushMessage.textContent = "通知登録に失敗しました。";
+            }
+        });
+
+        localNotificationTestButton.addEventListener("click", async function () {
+            if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+                localNotificationTestMessage.textContent = "この端末またはブラウザは通知に対応していません。";
+                return;
+            }
+
+            const permission = await Notification.requestPermission();
+            if (permission !== "granted") {
+                localNotificationTestMessage.textContent = "通知が許可されていません。";
+                return;
+            }
+
+            try {
+                const registration = await navigator.serviceWorker.ready;
+                await registration.update();
+
+                if (registration.active) {
+                    registration.active.postMessage({ type: "SHOW_TEST_NOTIFICATION" });
+                    localNotificationTestMessage.textContent = "端末通知テストを送信しました。通知が表示されるか確認してください。";
+                } else {
+                    await registration.showNotification("端末通知テスト", {
+                        body: "この通知が表示されれば、端末の通知表示は有効です。",
+                        icon: "/static/icons/icon.svg",
+                        badge: "/static/icons/maskable-icon.svg",
+                        data: { url: "/" }
+                    });
+                    localNotificationTestMessage.textContent = "端末通知テストを送信しました。通知が表示されるか確認してください。";
+                }
+            } catch (error) {
+                console.warn("Local notification test failed", error);
+                localNotificationTestMessage.textContent = "端末通知テストに失敗しました。Android側の通知設定を確認してください。";
             }
         });
     </script>
