@@ -35,13 +35,15 @@ except ImportError:
     WebPushException = None
     webpush = None
 
+ENV_FILE = Path(os.getenv("ENV_FILE", ".env"))
+
 if load_dotenv is not None:
-    load_dotenv()
+    load_dotenv(ENV_FILE)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
-DB = "emergency.db"
+DB = os.getenv("DB_PATH", "emergency.db")
 REGISTRATION_PASSWORD = os.getenv("REGISTRATION_PASSWORD", "ChangeMe")
 security = HTTPBasic()
 CODE_ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
@@ -104,11 +106,10 @@ VAPID_CLAIMS = {
     )
 }
 DEBUG_UI = os.getenv("DEBUG_UI", "").lower() in ("1", "true", "yes", "on")
-ENV_FILE = Path(".env")
-CURRENT_URL_FILE = Path("current_url.txt")
+CURRENT_URL_FILE = Path(os.getenv("CURRENT_URL_FILE", "current_url.txt"))
 MANIFEST_FILE = Path("static/manifest.json")
-AUTO_EXPORT_DIR = Path("auto_exports")
-PLUGIN_DIR = Path("plugins")
+AUTO_EXPORT_DIR = Path(os.getenv("AUTO_EXPORT_DIR", "auto_exports"))
+PLUGIN_DIR = Path(os.getenv("PLUGIN_DIR", "plugins"))
 DEFAULT_APP_NAME = "Emergency Contact System"
 DEFAULT_APP_SHORT_NAME = "Emergency"
 DEFAULT_APP_ICON_PATH = "/static/icons/icon.svg"
@@ -266,6 +267,7 @@ def load_enabled_plugins():
 
 
 def update_env_file(values):
+    ENV_FILE.parent.mkdir(parents=True, exist_ok=True)
     existing_lines = []
     if ENV_FILE.exists():
         existing_lines = ENV_FILE.read_text(encoding="utf-8").splitlines()
@@ -299,7 +301,11 @@ def check_admin(credentials: HTTPBasicCredentials = Depends(security)):
 
 
 def init_db():
-    conn = sqlite3.connect(DB)
+    db_path = Path(DB)
+    if db_path.parent != Path("."):
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    conn = sqlite3.connect(str(db_path))
     cur = conn.cursor()
 
     cur.execute("""
@@ -477,7 +483,11 @@ init_db()
 
 
 def get_conn():
-    conn = sqlite3.connect(DB)
+    db_path = Path(DB)
+    if db_path.parent != Path("."):
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     return conn
 

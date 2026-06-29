@@ -9,3 +9,4 @@ current_url.txt
 cloudflared.log
 static/uploads/
 auto_exports/
+data/
