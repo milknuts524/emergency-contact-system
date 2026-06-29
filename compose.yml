@@ -1,0 +1,22 @@
+services:
+  emergency-contact:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: emergency-contact-system
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      TZ: Asia/Tokyo
+      DB_PATH: /app/data/emergency.db
+      ENV_FILE: /app/data/.env
+      CURRENT_URL_FILE: /app/data/current_url.txt
+      AUTO_EXPORT_DIR: /app/data/auto_exports
+      PLUGIN_DIR: /app/plugins
+      VIEWER_UPLOAD_DIR: /app/static/uploads/viewer
+    volumes:
+      - ./data:/app/data
+      - ./plugins:/app/plugins
+      - ./static:/app/static
+      - ./templates:/app/templates

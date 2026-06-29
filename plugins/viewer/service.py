@@ -1,9 +1,10 @@
 from datetime import datetime
+import os
 from pathlib import Path
 import secrets
 
 
-UPLOAD_DIR = Path("static/uploads/viewer")
+UPLOAD_DIR = Path(os.getenv("VIEWER_UPLOAD_DIR", "static/uploads/viewer"))
 MAX_ITEMS = 10
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 DEFAULT_DISPLAY_NAME = "資料閲覧"

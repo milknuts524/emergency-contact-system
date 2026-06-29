@@ -1,0 +1,17 @@
+.git
+.gitignore
+.DS_Store
+__pycache__/
+*.pyc
+venv/
+.env
+emergency.db
+*.db
+data/
+auto_exports/
+static/uploads/
+cloudflared.log
+current_url.txt
+vapid_private_key.pem
+.agents/
+.codex/
