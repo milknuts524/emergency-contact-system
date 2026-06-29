@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 
+import main
 from .service import fetch_calendar_events
 
 
@@ -16,6 +17,13 @@ PLUGIN = {
 
 @router.get("/calendar")
 def calendar_home(request: Request):
+    conn = main.get_conn()
+    try:
+        main.require_registered_member(request, conn)
+    except HTTPException:
+        conn.close()
+        raise
+    conn.close()
     calendar_data = fetch_calendar_events()
     return templates.TemplateResponse(
         request,

@@ -1389,6 +1389,23 @@ def delete_member_completely(conn, member_id):
     )
 
 
+def get_registered_member_from_cookie(conn, request):
+    code = (request.cookies.get("member_code") or "").strip()
+    if not code:
+        return None
+    return conn.execute(
+        "SELECT * FROM members WHERE code = ? AND active = 1",
+        (code,)
+    ).fetchone()
+
+
+def require_registered_member(request, conn):
+    member = get_registered_member_from_cookie(conn, request)
+    if not member:
+        raise HTTPException(status_code=404, detail="Not found")
+    return member
+
+
 @app.get("/")
 def home(request: Request):
     response = templates.TemplateResponse(
@@ -1405,6 +1422,11 @@ def home(request: Request):
 def staff_announcements(request: Request):
     now = datetime.now().isoformat(timespec="minutes").replace("T", " ")
     conn = get_conn()
+    try:
+        require_registered_member(request, conn)
+    except HTTPException:
+        conn.close()
+        raise
     rows = conn.execute(
         """
         SELECT
@@ -1546,7 +1568,7 @@ def user_page(request: Request, code: str):
 
     conn.close()
 
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         "user.html",
         {
@@ -1564,6 +1586,13 @@ def user_page(request: Request, code: str):
             "announcement_count": announcement_count,
         }
     )
+    response.set_cookie(
+        "member_code",
+        member["code"],
+        max_age=60 * 60 * 24 * 365 * 10,
+        samesite="lax",
+    )
+    return response
 
 
 @app.post("/user/{code}/push-subscribe")
@@ -2996,6 +3025,24 @@ def admin(
 
 @app.get("/result")
 def result(request: Request):
+    conn = get_conn()
+    try:
+        require_registered_member(request, conn)
+    except HTTPException:
+        conn.close()
+        raise
+    dashboard_data = build_response_dashboard_data(conn)
+    conn.close()
+
+    return templates.TemplateResponse(
+        request,
+        "result.html",
+        dashboard_data
+    )
+
+
+@app.get("/admin/result")
+def admin_result(request: Request, authorized: bool = Depends(check_admin)):
     conn = get_conn()
     dashboard_data = build_response_dashboard_data(conn)
     conn.close()

@@ -28,7 +28,7 @@
 </head>
 <body>
     <main>
-        <a class="back" href="/admin">戻る</a>
+        <a id="phonebook-back-link" class="back" href="/">戻る</a>
         <h1>電話帳</h1>
         <input id="phonebook-search" type="search" placeholder="検索">
         <select id="phonebook-category-filter" aria-label="カテゴリで絞り込み">
@@ -126,6 +126,11 @@
         const categoryFilter = document.getElementById("phonebook-category-filter");
         const cards = Array.from(document.querySelectorAll(".contact-card"));
         const sections = Array.from(document.querySelectorAll("[data-category-section]"));
+        const backLink = document.getElementById("phonebook-back-link");
+        const memberCode = localStorage.getItem("emergency_member_code");
+        if (backLink && memberCode) {
+            backLink.href = "/user/" + encodeURIComponent(memberCode);
+        }
 
         function filterPhonebook() {
             const query = searchInput ? searchInput.value.trim().toLowerCase() : "";

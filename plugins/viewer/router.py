@@ -155,6 +155,11 @@ def admin_delete_viewer_item(
 @router.get("/viewer/{item_id}")
 def viewer_item(request: Request, item_id: int):
     conn = conn_with_tables()
+    try:
+        main.require_registered_member(request, conn)
+    except HTTPException:
+        conn.close()
+        raise
     item = service.get_item(conn, item_id)
     display_name = service.get_display_name(conn)
     conn.close()
@@ -174,8 +179,13 @@ def viewer_item(request: Request, item_id: int):
 
 
 @router.get("/viewer/{item_id}/file")
-def viewer_file(item_id: int):
+def viewer_file(request: Request, item_id: int):
     conn = conn_with_tables()
+    try:
+        main.require_registered_member(request, conn)
+    except HTTPException:
+        conn.close()
+        raise
     item = service.get_item(conn, item_id)
     conn.close()
     if not item or item["is_active"] != 1:

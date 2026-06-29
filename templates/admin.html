@@ -413,6 +413,25 @@
             align-items: center;
             justify-content: space-between;
         }
+        .response-rate-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        .result-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 42px;
+            padding: 0 14px;
+            border-radius: 6px;
+            background: #1f4f82;
+            color: white;
+            font: inherit;
+            font-weight: bold;
+            text-decoration: none;
+        }
         .reset-response-button {
             padding: 10px 14px;
             border: none;
@@ -548,11 +567,11 @@
         <div class="mode-actions">
             <form method="post" action="/admin/mode">
                 <input type="hidden" name="mode" value="normal">
-                <button class="mode-button {% if disaster_mode != 'disaster' %}is-active{% endif %}" type="submit">通常</button>
+                <button class="mode-button {% if disaster_mode != 'disaster' %}is-active{% endif %}" type="submit">通常モード</button>
             </form>
             <form method="post" action="/admin/mode" onsubmit="return confirm('災害モードに切り替えますか？');">
                 <input type="hidden" name="mode" value="disaster">
-                <button class="mode-button disaster {% if disaster_mode == 'disaster' %}is-active{% endif %}" type="submit">災害</button>
+                <button class="mode-button disaster {% if disaster_mode == 'disaster' %}is-active{% endif %}" type="submit">災害モード</button>
             </form>
         </div>
     </div>
@@ -841,10 +860,13 @@
                 返信率 {{ response_summary["percent"] }}%
                 ({{ response_summary["responded"] }}/{{ response_summary["total"] }})
             </p>
-            <form method="post" action="/admin/responses/reset"
-                  onsubmit="return confirm('返信をリセットし、全員の状態を未返信に戻します。実行しますか？');">
-                <button class="reset-response-button" type="submit">返信をリセット</button>
-            </form>
+            <div class="response-rate-actions">
+                <a class="result-button" href="/admin/result">結果を見る</a>
+                <form method="post" action="/admin/responses/reset"
+                      onsubmit="return confirm('返信をリセットし、全員の状態を未返信に戻します。実行しますか？');">
+                    <button class="reset-response-button" type="submit">返信をリセット</button>
+                </form>
+            </div>
         </div>
         <div>
             職種別

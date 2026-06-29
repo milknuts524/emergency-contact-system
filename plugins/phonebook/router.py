@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
@@ -242,6 +242,11 @@ async def admin_import_phonebook(
 @router.get("/phonebook")
 def phonebook_page(request: Request):
     conn = conn_with_tables()
+    try:
+        main.require_registered_member(request, conn)
+    except HTTPException:
+        conn.close()
+        raise
     disaster_mode = main.get_disaster_mode(conn)
     view_data = service.phonebook_view_data(conn, disaster_mode=disaster_mode)
     conn.close()
