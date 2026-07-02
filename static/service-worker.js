@@ -1,6 +1,6 @@
-const SW_VERSION = "2026-06-27-maintenance-1";
-const CACHE_NAME = "emergency-contact-v7";
-const DEBUG_PUSH = true;
+const SW_VERSION = "2026-07-02-push-production-2";
+const CACHE_NAME = "emergency-contact-v9";
+const DEBUG_PUSH = false;
 const MAINTENANCE_URL = "/static/maintenance.html";
 const APP_SHELL = [
   "/",

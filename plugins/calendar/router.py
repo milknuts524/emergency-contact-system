@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.templating import Jinja2Templates
 
 import main
@@ -11,8 +11,19 @@ templates = Jinja2Templates(directory="plugins/calendar/templates")
 PLUGIN = {
     "name": "calendar",
     "label": "Calendar",
-    "url": "/calendar",
+    "url": "/admin/calendar",
 }
+
+
+def render_calendar(request: Request):
+    calendar_data = fetch_calendar_events()
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "calendar": calendar_data,
+        }
+    )
 
 
 @router.get("/calendar")
@@ -24,11 +35,9 @@ def calendar_home(request: Request):
         conn.close()
         raise
     conn.close()
-    calendar_data = fetch_calendar_events()
-    return templates.TemplateResponse(
-        request,
-        "index.html",
-        {
-            "calendar": calendar_data,
-        }
-    )
+    return render_calendar(request)
+
+
+@router.get("/admin/calendar")
+def admin_calendar(request: Request, authorized: bool = Depends(main.check_admin)):
+    return render_calendar(request)

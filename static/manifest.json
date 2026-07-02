@@ -1,7 +1,7 @@
 {
-  "name": "Emergency Contact System",
-  "short_name": "Emergency",
-  "description": "Emergency Contact System for quick safety status reporting.",
+  "name": "遠山病院緊急安否確認システム",
+  "short_name": "遠山病院",
+  "description": "遠山病院緊急安否確認システム for quick safety status reporting.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -9,9 +9,9 @@
   "theme_color": "#c91f1f",
   "icons": [
     {
-      "src": "/static/icons/icon.svg",
+      "src": "/static/icons/app-icon.png",
       "sizes": "any",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

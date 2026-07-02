@@ -30,6 +30,7 @@ except ImportError:
     load_dotenv = None
 
 try:
+    from py_vapid import Vapid
     from pywebpush import WebPushException, webpush
 except ImportError:
     WebPushException = None
@@ -233,7 +234,11 @@ LOADED_PLUGINS = []
 
 
 def load_enabled_plugins():
+    loaded_names = {plugin["name"] for plugin in LOADED_PLUGINS}
+
     for plugin_name in ENABLED_PLUGINS:
+        if plugin_name in loaded_names:
+            continue
         try:
             module = importlib.import_module(f"plugins.{plugin_name}.router")
             router = getattr(module, "router")
@@ -1247,6 +1252,26 @@ def import_members_from_csv(content):
     return added, skipped
 
 
+def resolve_vapid_private_key():
+    if VAPID_PRIVATE_KEY:
+        return VAPID_PRIVATE_KEY, ""
+
+    key_file = (VAPID_PRIVATE_KEY_FILE or "").strip()
+    if not key_file:
+        return "", "VAPID private key is not configured"
+
+    path = Path(key_file)
+    candidates = [path]
+    if not path.is_absolute():
+        candidates.append(ENV_FILE.parent / path)
+
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file():
+            return Vapid.from_file(str(candidate)), ""
+
+    checked = ", ".join(str(candidate) for candidate in candidates)
+    return "", f"VAPID private key file not found: {checked}"
+
 def send_push_notification(subscription, title, body, url="/", payload_override=None):
     result = {
         "ok": False,
@@ -1259,9 +1284,9 @@ def send_push_notification(subscription, title, body, url="/", payload_override=
         "inactive": False,
         "vapid_warning": False,
     }
-    vapid_private_key = VAPID_PRIVATE_KEY_FILE or VAPID_PRIVATE_KEY
+    vapid_private_key, vapid_key_error = resolve_vapid_private_key()
     if webpush is None or not vapid_private_key:
-        result["error"] = "pywebpush or VAPID private key is not configured"
+        result["error"] = vapid_key_error or "pywebpush or VAPID private key is not configured"
         result["exception_message"] = result["error"]
         return result
 
@@ -1477,7 +1502,7 @@ def service_worker():
     return FileResponse(
         "static/service-worker.js",
         media_type="application/javascript",
-        headers={"Service-Worker-Allowed": "/"}
+        headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"}
     )
 
 
@@ -2789,6 +2814,7 @@ def save_plugin_settings(
     })
     os.environ["ENABLED_PLUGINS"] = plugins_value
     ENABLED_PLUGINS = enabled_plugins
+    load_enabled_plugins()
 
     return RedirectResponse("/admin/settings?plugins_saved=1", status_code=303)
 

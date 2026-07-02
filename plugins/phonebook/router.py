@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse, Response
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 
 import main
@@ -8,7 +9,7 @@ from . import service
 
 router = APIRouter()
 templates = Jinja2Templates(directory="plugins/phonebook/templates")
-
+optional_admin_security = HTTPBasic(auto_error=False)
 PLUGIN = {
     "name": "phonebook",
     "label": "電話帳",
@@ -21,6 +22,13 @@ def conn_with_tables():
     service.init_db(conn)
     return conn
 
+
+def has_admin_credentials(credentials: HTTPBasicCredentials | None):
+    if credentials is None:
+        return False
+    user_ok = main.secrets.compare_digest(credentials.username, main.ADMIN_USER)
+    pass_ok = main.secrets.compare_digest(credentials.password, main.ADMIN_PASSWORD)
+    return user_ok and pass_ok
 
 @router.get("/admin/phonebook")
 def admin_phonebook(request: Request, authorized: bool = Depends(main.check_admin)):
@@ -240,13 +248,17 @@ async def admin_import_phonebook(
 
 
 @router.get("/phonebook")
-def phonebook_page(request: Request):
+def phonebook_page(
+    request: Request,
+    credentials: HTTPBasicCredentials | None = Depends(optional_admin_security),
+):
     conn = conn_with_tables()
     try:
         main.require_registered_member(request, conn)
     except HTTPException:
-        conn.close()
-        raise
+        if not has_admin_credentials(credentials):
+            conn.close()
+            raise
     disaster_mode = main.get_disaster_mode(conn)
     view_data = service.phonebook_view_data(conn, disaster_mode=disaster_mode)
     conn.close()

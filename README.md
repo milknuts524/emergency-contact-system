@@ -995,3 +995,42 @@ Git管理前の注意:
 - `plugins/`、`static/`、`templates/` をボリュームとしてマウントし、プラグイン、静的ファイル、テンプレート、アップロード資料をホスト側に残せるようにしました。
 - `.dockerignore` に `.env`、SQLite DB、仮想環境、キャッシュ、一時ファイル、Cloudflareログ、VAPID秘密鍵、アップロード資料などを追加し、Dockerビルドに不要なファイルや機密情報が入らないようにしました。
 - `.gitignore` に `data/` を追加し、Docker運用時のDBや設定ファイルがGitへ混入しないようにしました。
+---
+
+## docker-experimental notes (Docker version only)
+
+These changes are for the `docker-experimental` branch and Docker deployment only. They are not intended as changes for the official `main` release line.
+
+- Added Docker-only route hardening for the calendar plugin:
+  - `/calendar` remains available for registered staff devices.
+  - `/admin/calendar` is available for authenticated admins.
+  - Plugin routes can be loaded after changing enabled plugins from the settings screen without duplicating already loaded plugins.
+- Adjusted the phonebook staff view for Docker operations:
+  - `/phonebook` remains protected for registered staff devices.
+  - Authenticated admins can also open `/phonebook` for review from the admin workflow.
+- Fixed Docker Push notification delivery:
+  - VAPID private key files are resolved from `VAPID_PRIVATE_KEY_FILE`.
+  - Relative VAPID key paths are also checked under the Docker data directory (`/app/data`).
+  - PEM VAPID private keys are loaded through `py_vapid.Vapid.from_file()` before calling `pywebpush`.
+  - The configured `VAPID_PUBLIC_KEY` must match `data/vapid_private_key.pem`; after changing keys, staff devices must re-register Push notifications.
+- Restored production Push notification display:
+  - `static/service-worker.js` now uses `DEBUG_PUSH = false`.
+  - Service Worker version/cache names were bumped so devices fetch the updated worker.
+  - Service Worker registration URLs include a version query string to bypass stale Cloudflare/browser cache.
+  - `/service-worker.js` is served with no-store cache headers.
+- Updated Windows/Docker startup helper behavior outside the repo:
+  - `C:\Docker\open-emergency.bat` waits for both local Docker (`http://127.0.0.1:8000/`) and the public URL before opening the browser.
+  - Cloudflare 1033/error pages are no longer treated as a ready state.
+  - If the public URL is not ready after the wait period, the local URL is opened as a fallback.
+
+Operational notes:
+
+- Rebuild after Python app changes:
+
+```powershell
+cd C:\Docker\emergency-contact-system
+docker compose up -d --build
+```
+
+- Files under `plugins/`, `static/`, and `templates/` are bind-mounted in Docker, but rebuilding is still recommended after route or Service Worker changes.
+- Do not commit `data/.env`, `data/emergency.db`, or `data/vapid_private_key.pem`.
