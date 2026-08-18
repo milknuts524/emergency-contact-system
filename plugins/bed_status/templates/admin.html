@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>外部用掲示板 管理</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f4f6f8;
+            color: #1f2933;
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", sans-serif;
+            font-size: 18px;
+        }
+        h1, h2 { margin-top: 0; }
+        .card {
+            margin-bottom: 18px;
+            padding: 16px;
+            border: 2px solid #d7dde5;
+            border-radius: 12px;
+            background: #ffffff;
+        }
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .button, button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 48px;
+            padding: 0 14px;
+            border: 0;
+            border-radius: 8px;
+            background: #1f4f82;
+            color: #ffffff;
+            font: inherit;
+            font-weight: bold;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .primary { background: #0f766e; }
+        .notice {
+            margin-bottom: 16px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #e8f5e9;
+            color: #1b5e20;
+            font-weight: bold;
+        }
+        .current-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: center;
+        }
+        .current-symbol {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 84px;
+            height: 84px;
+            border-radius: 10px;
+            color: #ffffff;
+            font-size: 56px;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .available .current-symbol, .status-button.available { background: #137a3a; }
+        .inquiry .current-symbol, .status-button.inquiry { background: #b7791f; }
+        .full .current-symbol, .status-button.full { background: #c62828; }
+        .status-label {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 900;
+        }
+        .status-message {
+            margin: 4px 0 0;
+            font-weight: bold;
+        }
+        .status-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+        }
+        .status-button {
+            min-height: 112px;
+            flex-direction: column;
+            gap: 6px;
+            color: #ffffff;
+            font-size: 22px;
+            border: 4px solid transparent;
+        }
+        .status-button .mark {
+            font-size: 44px;
+            line-height: 1;
+        }
+        .status-button.is-active {
+            border-color: #ffd447;
+            box-shadow: 0 0 0 3px #1f2933;
+        }
+        label {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px;
+            border: 2px solid #9aa5b1;
+            border-radius: 8px;
+            font: inherit;
+        }
+        textarea { min-height: 80px; }
+        .small-text {
+            color: #52606d;
+            font-size: 15px;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #ffffff;
+        }
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #ccd5df;
+            text-align: left;
+            vertical-align: top;
+        }
+        @media (max-width: 620px) {
+            body { padding: 14px; }
+            .status-buttons { grid-template-columns: 1fr; }
+            .status-button { min-height: 88px; }
+        }
+    </style>
+</head>
+<body>
+    <h1>外部用掲示板 管理</h1>
+
+    {% if request.query_params.get("saved") == "1" %}
+        <div class="notice">受け入れ状況を更新しました。</div>
+    {% endif %}
+
+    <div class="toolbar">
+        <a class="button" href="/admin">管理画面へ戻る</a>
+        <a class="button" href="/bed-status" target="_blank" rel="noopener">外部表示を開く</a>
+        <a class="button" href="/bed-status/update" target="_blank" rel="noopener">簡易更新を開く</a>
+    </div>
+
+    <section class="card {{ current['class_name'] }}">
+        <h2>現在の表示</h2>
+        <div class="current-status">
+            <div class="current-symbol">{{ current["symbol"] }}</div>
+            <div>
+                <p class="status-label">{{ current["label"] }}</p>
+                <p class="status-message">{{ current["message"] }}</p>
+                <p class="small-text">最終更新：{{ current["updated_at"] }}</p>
+            </div>
+        </div>
+    </section>
+
+    <form class="card" method="post" action="/admin/bed-status">
+        <h2>スマホ更新</h2>
+        <div class="status-buttons">
+            {% for key, item in statuses.items() %}
+                <button
+                    class="status-button {{ item['class_name'] }} {% if current['status'] == key %}is-active{% endif %}"
+                    type="submit"
+                    name="status"
+                    value="{{ key }}"
+                >
+                    <span class="mark">{{ item["symbol"] }}</span>
+                    <span>{{ item["label"] }}</span>
+                </button>
+            {% endfor %}
+        </div>
+        <label>
+            外部向け補足
+            <textarea name="public_note">{{ current["public_note"] or "" }}</textarea>
+        </label>
+        <label>
+            内部メモ
+            <textarea name="internal_note">{{ current["internal_note"] or "" }}</textarea>
+        </label>
+        <label>
+            更新者
+            <input type="text" name="updated_by" value="{{ current['updated_by'] or '' }}" placeholder="例：地域連携室">
+        </label>
+        <p class="small-text">○△×ボタンを押すと、その状態で即時更新します。</p>
+    </form>
+
+    <section class="card">
+        <h2>更新履歴</h2>
+        {% if history %}
+            <table>
+                <tr>
+                    <th>日時</th>
+                    <th>状態</th>
+                    <th>更新者</th>
+                    <th>内部メモ</th>
+                </tr>
+                {% for item in history %}
+                    <tr>
+                        <td>{{ item["updated_at"] }}</td>
+                        <td>{{ item["symbol"] }} {{ item["label"] }}</td>
+                        <td>{{ item["updated_by"] or "" }}</td>
+                        <td>{{ item["internal_note"] or "" }}</td>
+                    </tr>
+                {% endfor %}
+            </table>
+        {% else %}
+            <p>更新履歴はまだありません。</p>
+        {% endif %}
+    </section>
+</body>
+</html>

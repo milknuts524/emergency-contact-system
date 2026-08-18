@@ -16,21 +16,35 @@
             font-family: sans-serif;
             padding: 20px;
         }
+        .page-title {
+            margin: 0 0 20px;
+            font-size: 48px;
+            line-height: 1.2;
+        }
+        .admin-section {
+            margin-bottom: 20px;
+            padding: 16px;
+            border: 2px solid #ccd5df;
+            border-radius: 10px;
+            background: #ffffff;
+        }
+        .admin-section h2 {
+            margin: 0 0 12px;
+            font-size: 28px;
+            line-height: 1.3;
+        }
         .summary {
             display: flex;
             flex-wrap: wrap;
             gap: 12px;
-            margin-bottom: 20px;
+            margin-bottom: 0;
         }
         .admin-heading {
             display: flex;
             flex-wrap: wrap;
             align-items: center;
             gap: 14px;
-            margin-bottom: 18px;
-        }
-        .admin-heading h1 {
-            margin: 0;
+            margin-bottom: 0;
         }
         .mode-actions {
             display: flex;
@@ -64,7 +78,7 @@
             display: flex;
             flex-wrap: wrap;
             gap: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 0;
             align-items: center;
         }
         .push-box {
@@ -301,25 +315,56 @@
             cursor: not-allowed;
         }
         .push-target-actions {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 10px;
-            align-items: end;
             margin-top: 10px;
         }
-        .push-target-actions label {
+        .push-target-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 72px;
             margin: 0;
+            padding: 12px;
+            border: 3px solid #9aa5b1;
+            border-radius: 10px;
+            background: #ffffff;
+            color: #1f2933;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .push-target-card input {
+            width: 26px;
+            height: 26px;
+            margin: 0;
+            flex: 0 0 auto;
+        }
+        .push-target-card:has(input:checked) {
+            border-color: #1f4f82;
+            background: #e8f1fb;
+        }
+        .push-group-row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 6px;
+            margin-top: 12px;
             font-weight: bold;
         }
-        .push-target-actions select {
-            min-width: 220px;
-            width: auto;
-            margin: 6px 0 0;
+        .push-group-row select {
+            width: 100%;
+            max-width: 420px;
+            margin: 0;
+            padding: 10px;
+            border: 2px solid #9aa5b1;
+            border-radius: 8px;
+            font: inherit;
         }
         .push-submit {
             width: 100%;
             min-height: 72px;
-            margin-top: 10px;
+            margin-top: 16px;
             border: none;
             border-radius: 10px;
             background: #c62828;
@@ -552,6 +597,12 @@
             transform: translateY(0);
         }
         @media (max-width: 680px) {
+            .page-title {
+                font-size: 40px;
+            }
+            .push-target-actions {
+                grid-template-columns: 1fr;
+            }
             .mode-button {
                 min-height: 64px;
                 padding: 0 16px;
@@ -562,19 +613,23 @@
 </head>
 <body>
     <div id="push-sent-toast" class="sent-toast" role="status" aria-live="polite">通知を送りました</div>
-    <div class="admin-heading">
-        <h1>管理画面</h1>
-        <div class="mode-actions">
-            <form method="post" action="/admin/mode">
-                <input type="hidden" name="mode" value="normal">
-                <button class="mode-button {% if disaster_mode != 'disaster' %}is-active{% endif %}" type="submit">通常モード</button>
-            </form>
-            <form method="post" action="/admin/mode" onsubmit="return confirm('災害モードに切り替えますか？');">
-                <input type="hidden" name="mode" value="disaster">
-                <button class="mode-button disaster {% if disaster_mode == 'disaster' %}is-active{% endif %}" type="submit">災害モード</button>
-            </form>
+    <h1 class="page-title">緊急通知システム 管理画面</h1>
+
+    <section class="admin-section">
+        <h2>運用モード</h2>
+        <div class="admin-heading">
+            <div class="mode-actions">
+                <form method="post" action="/admin/mode">
+                    <input type="hidden" name="mode" value="normal">
+                    <button class="mode-button {% if disaster_mode != 'disaster' %}is-active{% endif %}" type="submit">通常モード</button>
+                </form>
+                <form method="post" action="/admin/mode" onsubmit="return confirm('災害モードに切り替えますか？');">
+                    <input type="hidden" name="mode" value="disaster">
+                    <button class="mode-button disaster {% if disaster_mode == 'disaster' %}is-active{% endif %}" type="submit">災害モード</button>
+                </form>
+            </div>
         </div>
-    </div>
+    </section>
 
     {% if request.query_params.get("imported") is not none %}
         <div class="notice">
@@ -667,23 +722,29 @@
         <div class="notice">モードを切り替えました。</div>
     {% endif %}
 
-    <div class="summary">
-        <div class="card gray">登録 {{ counts["total"] }}</div>
-        <div class="card green">{{ status_labels["fine"] }} {{ counts["fine"] }}</div>
-        <div class="card yellow">{{ status_labels["trouble"] }} {{ counts["trouble"] }}</div>
-        <div class="card red">{{ status_labels["help"] }} {{ counts["help"] }}</div>
-        <div class="card gray">未応答 {{ counts["none"] }}</div>
-    </div>
+    <section class="admin-section">
+        <h2>職員安否状況</h2>
+        <div class="summary">
+            <div class="card gray">登録 {{ counts["total"] }}</div>
+            <div class="card green">{{ status_labels["fine"] }} {{ counts["fine"] }}</div>
+            <div class="card yellow">{{ status_labels["trouble"] }} {{ counts["trouble"] }}</div>
+            <div class="card red">{{ status_labels["help"] }} {{ counts["help"] }}</div>
+            <div class="card gray">未応答 {{ counts["none"] }}</div>
+        </div>
+    </section>
 
-    <div class="toolbar">
-        <a class="action-button" href="/admin/export/members.csv">登録者一覧CSV出力</a>
-        <a class="action-button" href="/admin/export/responses.csv">応答履歴CSV出力</a>
-        <form id="csv-import-form" method="post" action="/admin/import/members.csv" enctype="multipart/form-data">
-            <input id="csv-file-input" class="hidden-file-input" type="file" name="csv_file" accept=".csv,text/csv" required>
-            <button class="action-button" type="button" id="csv-import-button">CSVを読み込む</button>
-        </form>
-        <a class="action-button settings-button" href="/admin/settings">設定</a>
-    </div>
+    <section class="admin-section">
+        <h2>名簿管理</h2>
+        <div class="toolbar">
+            <a class="action-button" href="/admin/export/members.csv">登録者一覧CSV出力</a>
+            <a class="action-button" href="/admin/export/responses.csv">応答履歴CSV出力</a>
+            <form id="csv-import-form" method="post" action="/admin/import/members.csv" enctype="multipart/form-data">
+                <input id="csv-file-input" class="hidden-file-input" type="file" name="csv_file" accept=".csv,text/csv" required>
+                <button class="action-button" type="button" id="csv-import-button">CSVを読み込む</button>
+            </form>
+            <a class="action-button settings-button" href="/admin/settings">設定</a>
+        </div>
+    </section>
 
     <div class="public-url-box">
         <div>
@@ -759,7 +820,7 @@
 
     <div class="push-box {% if disaster_mode != 'disaster' %}is-disabled{% endif %}">
         <div class="section-heading-row">
-            <h2>Push通知</h2>
+            <h2>安否確認通知</h2>
             <a class="action-button" href="/admin/groups">通知グループ管理</a>
             <a class="action-button" href="/admin/push-templates">Push定型文管理</a>
         </div>
@@ -793,23 +854,35 @@
                 本文<br>
                 <textarea id="push-body-input" name="body" required {% if disaster_mode != "disaster" %}disabled{% endif %}>安否確認をお願いします。</textarea>
             </label>
-            <button class="push-submit" type="submit" name="target_mode" value="all" {% if disaster_mode != "disaster" %}disabled{% endif %}>一斉通知送信</button>
-
             <div class="push-target-actions">
-                <button class="push-secondary" type="submit" name="target_mode" value="selected" {% if disaster_mode != "disaster" %}disabled{% endif %}>選択した人だけ通知</button>
-                <button class="push-secondary warning" type="submit" name="target_mode" value="unanswered" {% if disaster_mode != "disaster" %}disabled{% endif %}>応答がない人だけ通知</button>
-                <label>
-                    通知グループ<br>
-                    <select name="target_group" {% if disaster_mode != "disaster" %}disabled{% endif %}>
-                        {% for group in notification_groups %}
-                            {% if group["name"] != "全員" %}
-                                <option value="{{ group['id'] }}">{{ group["name"] }}</option>
-                            {% endif %}
-                        {% endfor %}
-                    </select>
+                <label class="push-target-card">
+                    <input type="radio" name="target_mode" value="all" checked {% if disaster_mode != "disaster" %}disabled{% endif %}>
+                    一斉通知
                 </label>
-                <button class="push-secondary" type="submit" name="target_mode" value="group" {% if disaster_mode != "disaster" %}disabled{% endif %}>グループ通知</button>
+                <label class="push-target-card">
+                    <input type="radio" name="target_mode" value="selected" {% if disaster_mode != "disaster" %}disabled{% endif %}>
+                    選択者通知
+                </label>
+                <label class="push-target-card">
+                    <input type="radio" name="target_mode" value="unanswered" {% if disaster_mode != "disaster" %}disabled{% endif %}>
+                    未応答者通知
+                </label>
+                <label class="push-target-card">
+                    <input type="radio" name="target_mode" value="group" {% if disaster_mode != "disaster" %}disabled{% endif %}>
+                    グループ通知
+                </label>
             </div>
+            <label class="push-group-row">
+                通知グループ
+                <select name="target_group" {% if disaster_mode != "disaster" %}disabled{% endif %}>
+                    {% for group in notification_groups %}
+                        {% if group["name"] != "全員" %}
+                            <option value="{{ group['id'] }}">{{ group["name"] }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+            </label>
+            <button class="push-submit" type="submit" {% if disaster_mode != "disaster" %}disabled{% endif %}>送信</button>
         </form>
     </div>
 

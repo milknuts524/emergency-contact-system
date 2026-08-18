@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>受け入れ状況</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: #f4f6f8;
+            color: #1f2933;
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", sans-serif;
+            font-size: 18px;
+            line-height: 1.6;
+        }
+        main {
+            width: 100%;
+            max-width: 720px;
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: max(28px, env(safe-area-inset-top)) 16px max(28px, env(safe-area-inset-bottom));
+        }
+        .panel {
+            padding: 22px;
+            border: 2px solid #d7dde5;
+            border-radius: 12px;
+            background: #ffffff;
+        }
+        h1 {
+            margin: 0 0 12px;
+            font-size: 28px;
+            line-height: 1.25;
+        }
+        .status {
+            display: grid;
+            grid-template-columns: 112px minmax(0, 1fr);
+            gap: 18px;
+            align-items: center;
+            margin: 18px 0;
+        }
+        .symbol {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 112px;
+            height: 112px;
+            border-radius: 12px;
+            color: #ffffff;
+            font-size: 72px;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .available .symbol { background: #137a3a; }
+        .inquiry .symbol { background: #b7791f; }
+        .full .symbol { background: #c62828; }
+        .label {
+            margin: 0;
+            font-size: 32px;
+            font-weight: 900;
+            line-height: 1.25;
+        }
+        .message {
+            margin: 8px 0 0;
+            font-size: 20px;
+            font-weight: 700;
+        }
+        .note {
+            margin: 18px 0 0;
+            padding: 14px;
+            border-radius: 8px;
+            background: #eef2f7;
+            font-weight: 700;
+        }
+        .updated {
+            margin: 18px 0 0;
+            color: #52606d;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        @media (max-width: 520px) {
+            .status { grid-template-columns: 1fr; }
+            .symbol { width: 100%; height: 96px; }
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <section class="panel {{ current['class_name'] }}">
+            <h1>本日の受け入れ状況</h1>
+            <div class="status">
+                <div class="symbol" aria-hidden="true">{{ current["symbol"] }}</div>
+                <div>
+                    <p class="label">{{ current["label"] }}</p>
+                    <p class="message">{{ current["message"] }}</p>
+                </div>
+            </div>
+            {% if current["public_note"] %}
+                <p class="note">{{ current["public_note"] }}</p>
+            {% endif %}
+            <p class="updated">最終更新：{{ current["updated_at"] }}</p>
+        </section>
+    </main>
+</body>
+</html>

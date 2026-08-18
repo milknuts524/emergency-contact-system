@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>受け入れ状況 更新</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            background: #f4f6f8;
+            color: #1f2933;
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Yu Gothic", sans-serif;
+            font-size: 18px;
+        }
+        main {
+            width: 100%;
+            max-width: 560px;
+            min-height: 100vh;
+            margin: 0 auto;
+            padding: max(18px, env(safe-area-inset-top)) 14px max(24px, env(safe-area-inset-bottom));
+        }
+        h1, h2 { margin-top: 0; }
+        .card {
+            margin-bottom: 16px;
+            padding: 16px;
+            border: 2px solid #d7dde5;
+            border-radius: 12px;
+            background: #ffffff;
+        }
+        .notice {
+            margin-bottom: 14px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #e8f5e9;
+            color: #1b5e20;
+            font-weight: bold;
+        }
+        .error {
+            margin-bottom: 14px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #ffebee;
+            color: #b71c1c;
+            font-weight: bold;
+        }
+        .current {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .symbol {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 74px;
+            height: 74px;
+            border-radius: 10px;
+            color: #ffffff;
+            font-size: 48px;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .available .symbol, .status-button.available { background: #137a3a; }
+        .inquiry .symbol, .status-button.inquiry { background: #b7791f; }
+        .full .symbol, .status-button.full { background: #c62828; }
+        .status-label {
+            margin: 0;
+            font-size: 26px;
+            font-weight: 900;
+        }
+        .small-text {
+            margin: 4px 0 0;
+            color: #52606d;
+            font-size: 15px;
+            font-weight: bold;
+        }
+        label {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            min-height: 52px;
+            margin-top: 6px;
+            padding: 10px;
+            border: 2px solid #9aa5b1;
+            border-radius: 8px;
+            font: inherit;
+            font-size: 20px;
+        }
+        textarea {
+            min-height: 84px;
+            font-size: 18px;
+        }
+        .status-buttons {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+        }
+        .status-button {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 86px;
+            gap: 12px;
+            border: 4px solid transparent;
+            border-radius: 10px;
+            color: #ffffff;
+            font: inherit;
+            font-size: 24px;
+            font-weight: 900;
+            cursor: pointer;
+        }
+        .status-button .mark {
+            font-size: 46px;
+            line-height: 1;
+        }
+        .status-button.is-active {
+            border-color: #ffd447;
+            box-shadow: 0 0 0 3px #1f2933;
+        }
+        .links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .link-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 44px;
+            padding: 0 12px;
+            border-radius: 8px;
+            background: #1f4f82;
+            color: #ffffff;
+            font-weight: bold;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>受け入れ状況 更新</h1>
+
+        {% if request.query_params.get("saved") == "1" %}
+            <div class="notice">更新しました。</div>
+        {% endif %}
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+
+        <section class="card {{ current['class_name'] }}">
+            <h2>現在の表示</h2>
+            <div class="current">
+                <div class="symbol">{{ current["symbol"] }}</div>
+                <div>
+                    <p class="status-label">{{ current["label"] }}</p>
+                    <p class="small-text">最終更新：{{ current["updated_at"] }}</p>
+                </div>
+            </div>
+        </section>
+
+        <form id="bed-status-update-form" class="card" method="post" action="/bed-status/update">
+            <label>
+                あいことば
+                <input id="pin-input" type="password" name="pin" inputmode="numeric" autocomplete="current-password" required>
+            </label>
+            <label>
+                更新者
+                <input id="updated-by-input" type="text" name="updated_by" value="{{ current['updated_by'] or '' }}" placeholder="例：院長、看護部長、地域連携室">
+            </label>
+            <label>
+                外部向け補足
+                <textarea name="public_note">{{ current["public_note"] or "" }}</textarea>
+            </label>
+            <div class="status-buttons">
+                {% for key, item in statuses.items() %}
+                    <button
+                        class="status-button {{ item['class_name'] }} {% if current['status'] == key %}is-active{% endif %}"
+                        type="submit"
+                        name="status"
+                        value="{{ key }}"
+                    >
+                        <span class="mark">{{ item["symbol"] }}</span>
+                        <span>{{ item["label"] }}</span>
+                    </button>
+                {% endfor %}
+            </div>
+            <p class="small-text">押した状態で即時更新します。管理者権限は不要です。</p>
+        </form>
+
+        <div class="links">
+            <a class="link-button" href="/bed-status">外部表示を確認</a>
+        </div>
+    </main>
+    <script>
+        (function () {
+            const pinInput = document.getElementById("pin-input");
+            const updatedByInput = document.getElementById("updated-by-input");
+            const form = document.getElementById("bed-status-update-form");
+            const pinKey = "bedStatusUpdatePin";
+            const updatedByKey = "bedStatusUpdatedBy";
+
+            try {
+                const savedPin = localStorage.getItem(pinKey);
+                const savedUpdatedBy = localStorage.getItem(updatedByKey);
+                if (savedPin) {
+                    pinInput.value = savedPin;
+                }
+                if (savedUpdatedBy) {
+                    updatedByInput.value = savedUpdatedBy;
+                }
+            } catch (error) {
+                return;
+            }
+
+            function saveInputs() {
+                try {
+                    localStorage.setItem(pinKey, pinInput.value);
+                    localStorage.setItem(updatedByKey, updatedByInput.value);
+                } catch (error) {
+                    // 保存できないブラウザでは通常入力のまま使います。
+                }
+            }
+
+            pinInput.addEventListener("input", saveInputs);
+            updatedByInput.addEventListener("input", saveInputs);
+            form.addEventListener("submit", saveInputs);
+        })();
+    </script>
+</body>
+</html>
