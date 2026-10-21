@@ -15,3 +15,5 @@ current_url.txt
 vapid_private_key.pem
 .agents/
 .codex/
+*.zip
+vapid_*diagnostics*/

@@ -4,7 +4,9 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import asyncio
+import base64
 import csv
+import hashlib
 import importlib
 import io
 import json
@@ -40,8 +42,31 @@ ENV_FILE = Path(os.getenv("ENV_FILE", ".env"))
 if load_dotenv is not None:
     load_dotenv(ENV_FILE)
 
+class PublicStaticFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        # Viewer documents must only be served through the authenticated route.
+        full_path, _ = self.lookup_path(path)
+        viewer_root = Path(os.getenv("VIEWER_UPLOAD_DIR", "static/uploads/viewer")).resolve()
+        resolved = Path(full_path).resolve()
+        legacy_root = Path("static/uploads/viewer").resolve()
+        if any(resolved == root or root in resolved.parents for root in (viewer_root, legacy_root)):
+            raise HTTPException(status_code=404, detail="Not found")
+        return await super().get_response(path, scope)
+
+
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", PublicStaticFiles(directory="static"), name="static")
+
+
+@app.middleware("http")
+async def privacy_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    if not request.url.path.startswith("/static/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 templates = Jinja2Templates(directory="templates")
 DB = os.getenv("DB_PATH", "emergency.db")
 REGISTRATION_PASSWORD = os.getenv("REGISTRATION_PASSWORD", "ChangeMe")
@@ -174,6 +199,18 @@ def get_user_calendar_data():
             "last_fetch_at": "",
             "ics_url": "",
         }
+
+
+def flatten_calendar_events(calendar_data):
+    events = []
+    if not calendar_data:
+        return events
+    for group in calendar_data.get("groups", []):
+        for event in group.get("events", []):
+            item = dict(event)
+            item["group_label"] = group.get("label", "")
+            events.append(item)
+    return events
 
 
 def get_member_plugin_surveys(conn, member):
@@ -353,6 +390,20 @@ def init_db():
         FOREIGN KEY(member_id) REFERENCES members(id)
     )
     """)
+    push_subscription_columns = [
+        row[1] for row in cur.execute("PRAGMA table_info(push_subscriptions)").fetchall()
+    ]
+    for column_name, column_type in {
+        "client_push_subscription_present": "INTEGER",
+        "client_push_permission": "TEXT",
+        "client_endpoint_type": "TEXT",
+        "client_vapid_public_fingerprint": "TEXT",
+        "client_vapid_key_match": "INTEGER",
+        "client_diagnosed_at": "TEXT",
+        "client_diagnostic_error": "TEXT",
+    }.items():
+        if column_name not in push_subscription_columns:
+            cur.execute(f"ALTER TABLE push_subscriptions ADD COLUMN {column_name} {column_type}")
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS settings (
@@ -549,6 +600,14 @@ def get_disaster_mode(conn=None):
 
 
 def set_disaster_mode(conn, mode):
+    # Close the previous incident's requests atomically with the mode change.
+    if mode != "disaster" and conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='disaster_board2_posts'"
+    ).fetchone():
+        conn.execute(
+            "UPDATE disaster_board2_posts SET archived_at=?, closed_at=COALESCE(closed_at, ?) WHERE archived_at IS NULL",
+            (datetime.now().isoformat(timespec="seconds"),) * 2,
+        )
     set_setting(conn, "disaster_mode", "disaster" if mode == "disaster" else "normal")
 
 
@@ -1279,7 +1338,7 @@ def send_push_notification(subscription, title, body, url="/", payload_override=
     }
     payload = payload_override or {
         "title": title or "院内緊急連絡",
-        "body": body or "安否確認をお願いします",
+        "body": body or "通知のテストです。",
         "url": url,
     }
     result["payload"] = payload
@@ -1332,6 +1391,111 @@ def endpoint_type(endpoint):
     return "other"
 
 
+def base64url_decode_unpadded(value):
+    value = (value or "").strip()
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode((value + padding).encode("ascii"))
+
+
+def base64url_encode_unpadded(data):
+    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+def fingerprint_bytes(data):
+    if not data:
+        return ""
+    return hashlib.sha256(data).hexdigest()[:16]
+
+
+def current_vapid_public_key_bytes():
+    if not VAPID_PUBLIC_KEY:
+        return None
+    public_bytes = base64url_decode_unpadded(VAPID_PUBLIC_KEY)
+    if len(public_bytes) != 65 or public_bytes[0] != 4:
+        raise ValueError("VAPID_PUBLIC_KEY is not an uncompressed P-256 public key")
+    return public_bytes
+
+
+def read_current_vapid_private_key_bytes():
+    if VAPID_PRIVATE_KEY_FILE:
+        key_path = Path(VAPID_PRIVATE_KEY_FILE)
+        if not key_path.is_absolute():
+            key_path = Path.cwd() / key_path
+        return key_path.read_bytes()
+    if VAPID_PRIVATE_KEY:
+        value = VAPID_PRIVATE_KEY.strip()
+        if "\\n" in value and "-----BEGIN" in value:
+            value = value.replace("\\n", "\n")
+        return value.encode("utf-8")
+    return None
+
+
+def current_vapid_private_key_source():
+    if VAPID_PRIVATE_KEY_FILE:
+        key_path = Path(VAPID_PRIVATE_KEY_FILE)
+        if not key_path.is_absolute():
+            key_path = Path.cwd() / key_path
+        return f"file:{key_path}"
+    if VAPID_PRIVATE_KEY:
+        return "environment:VAPID_PRIVATE_KEY"
+    return ""
+
+
+def derive_vapid_public_key_bytes_from_private():
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding,
+        PublicFormat,
+        load_pem_private_key,
+    )
+
+    private_bytes = read_current_vapid_private_key_bytes()
+    if not private_bytes:
+        return None
+    private_key = load_pem_private_key(private_bytes, password=None)
+    return private_key.public_key().public_bytes(
+        Encoding.X962,
+        PublicFormat.UncompressedPoint,
+    )
+
+
+def build_vapid_diagnostics():
+    diagnostics = {
+        "public_key_source": "environment:VAPID_PUBLIC_KEY" if VAPID_PUBLIC_KEY else "",
+        "private_key_source": current_vapid_private_key_source(),
+        "public_key_loaded": False,
+        "private_key_loaded": False,
+        "pair_match": False,
+        "public_key": VAPID_PUBLIC_KEY,
+        "derived_public_key": "",
+        "public_fingerprint": "",
+        "derived_fingerprint": "",
+        "public_error": "",
+        "private_error": "",
+    }
+
+    public_bytes = None
+    try:
+        public_bytes = current_vapid_public_key_bytes()
+        diagnostics["public_key_loaded"] = public_bytes is not None
+        diagnostics["public_fingerprint"] = fingerprint_bytes(public_bytes)
+    except Exception as exc:
+        diagnostics["public_error"] = str(exc)
+
+    derived_bytes = None
+    try:
+        derived_bytes = derive_vapid_public_key_bytes_from_private()
+        diagnostics["private_key_loaded"] = derived_bytes is not None
+        diagnostics["derived_public_key"] = (
+            base64url_encode_unpadded(derived_bytes) if derived_bytes else ""
+        )
+        diagnostics["derived_fingerprint"] = fingerprint_bytes(derived_bytes)
+    except Exception as exc:
+        diagnostics["private_error"] = str(exc)
+
+    diagnostics["pair_match"] = bool(public_bytes and derived_bytes and public_bytes == derived_bytes)
+    return diagnostics
+
+
 def deactivate_push_subscription(conn, subscription_id):
     conn.execute(
         "UPDATE push_subscriptions SET active = 0 WHERE id = ?",
@@ -1347,6 +1511,13 @@ def get_push_subscriptions_for_admin(conn):
             ps.endpoint,
             ps.created_at,
             ps.active,
+            ps.client_push_subscription_present,
+            ps.client_push_permission,
+            ps.client_endpoint_type,
+            ps.client_vapid_public_fingerprint,
+            ps.client_vapid_key_match,
+            ps.client_diagnosed_at,
+            ps.client_diagnostic_error,
             m.name,
             m.group_name
         FROM push_subscriptions ps
@@ -1361,6 +1532,7 @@ def get_push_subscriptions_for_admin(conn):
     for row in rows:
         item = dict(row)
         item["endpoint_type"] = endpoint_type(item["endpoint"])
+        item["client_endpoint_type"] = item["client_endpoint_type"] or item["endpoint_type"]
         subscriptions.append(item)
     return subscriptions
 
@@ -1483,6 +1655,7 @@ def service_worker():
 
 @app.post("/register")
 def register(
+    request: Request,
     name: str = Form(...),
     group_name: str = Form(""),
     contact: str = Form(""),
@@ -1530,6 +1703,8 @@ def register(
         "member_code",
         code,
         max_age=60 * 60 * 24 * 365 * 10,
+        httponly=True,
+        secure=request.url.scheme == "https",
         samesite="lax",
     )
     return response
@@ -1563,6 +1738,7 @@ def user_page(request: Request, code: str):
     calendar_enabled = is_plugin_enabled("calendar")
     phonebook_enabled = is_plugin_enabled("phonebook")
     calendar_data = get_user_calendar_data()
+    calendar_events = flatten_calendar_events(calendar_data)
     viewer_data = get_user_viewer_data()
     now = datetime.now().isoformat(timespec="minutes").replace("T", " ")
     announcement_count = conn.execute(
@@ -1591,7 +1767,9 @@ def user_page(request: Request, code: str):
             "survey_items": survey_items,
             "calendar_enabled": calendar_enabled,
             "phonebook_enabled": phonebook_enabled,
+            "disaster_board2_enabled": is_plugin_enabled("disaster_board2"),
             "calendar_data": calendar_data,
+            "calendar_events": calendar_events,
             "viewer_data": viewer_data,
             "announcement_count": announcement_count,
         }
@@ -1600,6 +1778,8 @@ def user_page(request: Request, code: str):
         "member_code",
         member["code"],
         max_age=60 * 60 * 24 * 365 * 10,
+        httponly=True,
+        secure=request.url.scheme == "https",
         samesite="lax",
     )
     return response
@@ -1651,6 +1831,108 @@ async def push_subscribe(code: str, request: Request):
             datetime.now().isoformat(timespec="seconds"),
         )
     )
+    conn.commit()
+    conn.close()
+
+    return JSONResponse({"ok": True})
+
+
+@app.post("/user/{code}/push-diagnostic")
+async def save_user_push_diagnostic(code: str, request: Request):
+    conn = get_conn()
+    member = conn.execute(
+        "SELECT * FROM members WHERE code = ? AND active = 1",
+        (code,)
+    ).fetchone()
+
+    if not member:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    data = await request.json()
+    endpoint = (data.get("endpoint") or "").strip()
+    subscription_present = 1 if data.get("push_subscription_present") else 0
+    permission = str(data.get("push_permission") or "unknown")[:40]
+    client_endpoint_type = str(data.get("endpoint_type") or endpoint_type(endpoint))[:20]
+    fingerprint = str(data.get("vapid_public_fingerprint") or "")[:64]
+    diagnostic_error = str(data.get("diagnostic_error") or "")[:500]
+    vapid_key_match = data.get("vapid_key_match")
+    if vapid_key_match is True:
+        vapid_key_match_value = 1
+    elif vapid_key_match is False:
+        vapid_key_match_value = 0
+    else:
+        vapid_key_match_value = None
+
+    values = (
+        subscription_present,
+        permission,
+        client_endpoint_type,
+        fingerprint,
+        vapid_key_match_value,
+        datetime.now().isoformat(timespec="seconds"),
+        diagnostic_error,
+    )
+
+    if endpoint:
+        cur = conn.execute(
+            """
+            UPDATE push_subscriptions
+            SET client_push_subscription_present = ?,
+                client_push_permission = ?,
+                client_endpoint_type = ?,
+                client_vapid_public_fingerprint = ?,
+                client_vapid_key_match = ?,
+                client_diagnosed_at = ?,
+                client_diagnostic_error = ?
+            WHERE member_id = ?
+              AND endpoint = ?
+            """,
+            values + (member["id"], endpoint),
+        )
+        if cur.rowcount == 0:
+            conn.execute(
+                """
+                UPDATE push_subscriptions
+                SET client_push_subscription_present = ?,
+                    client_push_permission = ?,
+                    client_endpoint_type = ?,
+                    client_vapid_public_fingerprint = ?,
+                    client_vapid_key_match = ?,
+                    client_diagnosed_at = ?,
+                    client_diagnostic_error = ?
+                WHERE id = (
+                    SELECT id FROM push_subscriptions
+                    WHERE member_id = ?
+                      AND active = 1
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                )
+                """,
+                values + (member["id"],),
+            )
+    else:
+        conn.execute(
+            """
+            UPDATE push_subscriptions
+            SET client_push_subscription_present = ?,
+                client_push_permission = ?,
+                client_endpoint_type = ?,
+                client_vapid_public_fingerprint = ?,
+                client_vapid_key_match = ?,
+                client_diagnosed_at = ?,
+                client_diagnostic_error = ?
+            WHERE id = (
+                SELECT id FROM push_subscriptions
+                WHERE member_id = ?
+                  AND active = 1
+                ORDER BY created_at DESC
+                LIMIT 1
+            )
+            """,
+            values + (member["id"],),
+        )
+
     conn.commit()
     conn.close()
 
@@ -2529,7 +2811,7 @@ def admin_send_push_test(
     result = send_push_notification(
         subscription,
         "Push送信テスト",
-        "この端末へのテスト通知です。",
+        "通知のテストです。",
         payload_url,
     )
     if result["inactive"]:
@@ -2550,6 +2832,28 @@ def admin_send_push_test(
         ),
         status_code=303
     )
+
+
+@app.get("/admin/push/vapid-diagnostics")
+def admin_vapid_diagnostics(authorized: bool = Depends(check_admin)):
+    try:
+        return JSONResponse(build_vapid_diagnostics())
+    except Exception as exc:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "VAPID診断を実行できませんでした",
+                "detail": str(exc),
+                "public_key_loaded": False,
+                "private_key_loaded": False,
+                "pair_match": False,
+                "public_key": "",
+                "derived_public_key": "",
+                "public_fingerprint": "",
+                "derived_fingerprint": "",
+            },
+            status_code=200,
+        )
 
 
 @app.post("/admin/push/debug-android/{subscription_id}")
@@ -2894,6 +3198,7 @@ def reset_settings(
     conn = get_conn()
     for key, value in default_settings.items():
         set_setting(conn, key, value)
+    set_disaster_mode(conn, "normal")
     conn.commit()
     conn.close()
 

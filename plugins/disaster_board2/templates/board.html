@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>災害掲示板2</title><style>
+body{font-family:system-ui,sans-serif;background:#f1f5f9;color:#172b40;margin:0;padding:20px}main{max-width:900px;margin:auto}a{color:#075ca8}article,section{background:white;border:1px solid #ced9e5;border-radius:12px;padding:20px;margin:18px 0}h1{font-size:26px}h2{font-size:20px;overflow-wrap:anywhere}.body{white-space:pre-wrap;overflow-wrap:anywhere}label{display:block;margin:14px 0}input,textarea,select,button{font:inherit;padding:12px;border:1px solid #8c9aab;border-radius:6px;max-width:100%;box-sizing:border-box}input,textarea{width:100%}button{background:#075ca8;color:white;cursor:pointer}.note{color:#46596c}.notice{background:#fff0ce;padding:14px;border-radius:8px}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:10px;border-bottom:1px solid #dde3ea}small{display:block}
+ .actions{display:flex;gap:12px;flex-wrap:wrap}.reply{border-left:4px solid #b8cde2;padding-left:16px;margin:24px 0}nav{display:flex;gap:24px}</style></head>
+<body><main>
+<a href="{{ base if post else ('/admin' if admin else '/user/' ~ member['code']) }}">{{ '掲示一覧へ' if post else '戻る' }}</a>
+<h1>災害掲示板2 <small>職員の投稿・返信</small></h1>
+<p class="notice">投稿・返信・入力した投稿者名は全職員に公開されます。災害対応に必要な連絡に使用し、患者情報・個人の連絡先・私的なやり取りは記載しないでください。</p>
+<p class="note">この掲示板への投稿は安否報告に反映されません。緊急の支援要請は所定の緊急連絡先にも連絡してください。通知は自動送信されません。</p>
+{% if not disaster %}<p class="notice">通常モードのため利用停止中です。管理者のみ記録を確認できます。</p>{% endif %}
+{% if request.query_params.get('saved') %}<p role="status">投稿を保存しました。</p>{% endif %}
+{% macro moderation(post, reply=None) %}
+{% if admin and disaster %}<div class="actions">
+{% if not (reply.hidden_at if reply else post.hidden_at) %}
+<form method="post" action="{{ base }}/{{ post.id }}/moderate"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="hide"><input type="hidden" name="reply_id" value="{{ reply.id if reply else 0 }}"><button>{{ 'この返信' if reply else 'この掲示全体' }}を非表示にする</button></form>
+{% endif %}
+{% if not reply and not post.closed_at and not post.archived_at %}<form method="post" action="{{ base }}/{{ post.id }}/moderate"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="action" value="close"><button>返信受付を終了する</button></form>{% endif %}
+</div>{% endif %}
+{% endmacro %}
+{% if post %}
+<article><h2>{{ post.title }}</h2><p>{{ post.category }} · {{ post.author }} · {{ post.created_at }}</p>
+{% if post.hidden_at %}<p class="notice">非表示（管理者のみ閲覧可能）</p>{% endif %}
+{% if post.archived_at or post.closed_at %}<p class="notice">受付終了{% if post.archived_at %}・過去の災害の記録{% endif %}</p>{% endif %}
+<p class="body">{{ post.body }}</p>{{ moderation(post) }}</article>
+<section><h2>返信</h2>
+{% for reply in replies %}<div class="reply">
+{% if reply.hidden_at and not admin %}<p class="note">管理者が非表示にした返信です。</p>
+{% else %}<p>{{ reply.author }} · {{ reply.created_at }}</p>{% if reply.hidden_at %}<p class="notice">非表示（管理者のみ閲覧可能）</p>{% endif %}<p class="body">{{ reply.body }}</p>{{ moderation(post, reply) }}{% endif %}
+</div>{% else %}<p>まだ返信はありません。</p>{% endfor %}
+</section>
+{% if disaster and not post.closed_at and not post.archived_at and not post.hidden_at %}
+<section><h2>返信を書く</h2><form method="post" action="{{ base }}/{{ post.id }}/reply"><input type="hidden" name="csrf" value="{{ csrf }}"><label>投稿者名（100文字以内）<input name="author_name" maxlength="100" value="{{ '' if admin else member['name'] }}" placeholder="名前を入力してください" required></label><label>本文（2000文字以内）<textarea name="body" maxlength="2000" rows="5" required></textarea></label><button>全職員に返信を公開する</button></form></section>
+{% endif %}
+{% else %}
+{% if disaster %}<section><h2>新しく投稿する</h2><form method="post" action="{{ base }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><label>分類 <select name="category">{% for category in categories %}<option>{{ category }}</option>{% endfor %}</select></label>
+<label>件名（100文字以内）<input name="title" maxlength="100" required></label><label>投稿者名（100文字以内）<input name="author_name" maxlength="100" value="{{ '' if admin else member['name'] }}" placeholder="名前を入力してください" required></label><label>本文（2000文字以内）<textarea name="body" maxlength="2000" rows="5" required></textarea></label><button>全職員に投稿を公開する</button></form></section>{% endif %}
+{% for item in posts %}<article><h2><a href="{{ base }}/{{ item.id }}">{{ item.title }}</a></h2><p>{{ item.category }} · {{ item.author }} · {{ item.created_at }}</p><p>{{ '受付終了' if item.closed_at or item.archived_at else '受付中' }}{% if item.hidden_at %} · 非表示{% endif %}{% if item.archived_at %} · 過去の災害の記録{% endif %}</p></article>{% else %}<section>現在、掲示はありません。</section>{% endfor %}
+{% endif %}
+<nav aria-label="ページ切り替え">{% if page > 1 %}<a href="?page={{ page - 1 }}">前のページ</a>{% endif %}<span>{{ page }}ページ</span>{% if more %}<a href="?page={{ page + 1 }}">次のページ</a>{% endif %}</nav>
+</main></body></html>

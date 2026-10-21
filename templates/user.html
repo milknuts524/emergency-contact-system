@@ -297,6 +297,54 @@
             box-shadow: 0 3px 0 rgba(0, 0, 0, 0.16);
         }
 
+        .push-diagnostic-area {
+            margin-top: 14px;
+            padding: 16px;
+            border: 2px solid #d7dde5;
+            border-radius: 14px;
+            background: #ffffff;
+        }
+
+        .push-diagnostic-button {
+            min-height: 50px;
+            margin-top: 8px;
+            padding: 10px 12px;
+            background: #2f6f5e;
+            color: #ffffff;
+            font-size: 18px;
+            box-shadow: 0 3px 0 rgba(0, 0, 0, 0.14);
+        }
+
+        .push-reregister-button {
+            min-height: 50px;
+            margin-top: 10px;
+            padding: 10px 12px;
+            background: #9f2f2f;
+            color: #ffffff;
+            font-size: 18px;
+            box-shadow: 0 3px 0 rgba(0, 0, 0, 0.14);
+        }
+
+        .push-reregister-button.is-hidden {
+            display: none;
+        }
+
+        .push-diagnostic-result {
+            margin-top: 10px;
+            color: #1f2933;
+            font-size: 16px;
+            font-weight: 700;
+            line-height: 1.55;
+        }
+
+        .push-diagnostic-ok {
+            color: #1b5e20;
+        }
+
+        .push-diagnostic-ng {
+            color: #b71c1c;
+        }
+
         .push-area.is-hidden {
             display: none;
         }
@@ -333,6 +381,14 @@
             border: 1px solid #ccd5df;
         }
 
+        .calendar-card.is-extra {
+            display: none;
+        }
+
+        .calendar-area.is-expanded .calendar-card.is-extra {
+            display: block;
+        }
+
         .calendar-card p {
             margin: 5px 0;
         }
@@ -352,6 +408,17 @@
             margin: 8px 0 0;
             color: #52606d;
             font-weight: 700;
+        }
+
+        .calendar-toggle-button {
+            min-height: 46px;
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            background: #1f4f82;
+            color: #ffffff;
+            font-size: 17px;
+            font-weight: 800;
         }
 
         .viewer-area {
@@ -558,6 +625,10 @@
             </section>
         {% endif %}
 
+        {% if disaster_mode == "disaster" and disaster_board2_enabled %}
+            <a class="result-link" href="/disaster-board2">災害掲示板2（職員の投稿・返信）</a>
+        {% endif %}
+
         <section class="portal-area" aria-label="通常機能">
             <a class="result-link" href="/staff">
                 お知らせ
@@ -585,35 +656,41 @@
                 </section>
             {% endif %}
             {% if calendar_enabled %}
-                <section class="calendar-area" aria-label="予定">
+                <section id="calendar-area" class="calendar-area" aria-label="予定">
                     <p class="calendar-title">予定</p>
                     {% if calendar_data and calendar_data["error"] %}
                         <p class="calendar-message">{{ calendar_data["error"] }}</p>
-                    {% elif calendar_data and calendar_data["groups"] %}
-                        {% for group in calendar_data["groups"] %}
-                            <div class="calendar-group">
-                                <h3>{{ group["label"] }}</h3>
-                                {% for event in group["events"] %}
-                                    <article class="calendar-card">
-                                        <p class="calendar-event-title">{{ event["title"] }}</p>
-                                        <p class="calendar-meta">
-                                            {{ event["date"] }}（{{ event["weekday"] }}）
-                                            {% if event["start_time"] %}
-                                                {{ event["start_time"] }}{% if event["end_time"] %} - {{ event["end_time"] }}{% endif %}
-                                            {% else %}
-                                                終日
-                                            {% endif %}
-                                        </p>
-                                        {% if event["location"] %}
-                                            <p>場所：{{ event["location"] }}</p>
-                                        {% endif %}
-                                        {% if event["description"] %}
-                                            <p>{{ event["description"] }}</p>
-                                        {% endif %}
-                                    </article>
-                                {% endfor %}
-                            </div>
+                    {% elif calendar_events %}
+                        {% for event in calendar_events %}
+                            <article class="calendar-card {% if loop.index > 3 %}is-extra{% endif %}">
+                                <p class="calendar-event-title">{{ event["title"] }}</p>
+                                <p class="calendar-meta">
+                                    {% if event["group_label"] %}{{ event["group_label"] }} / {% endif %}
+                                    {{ event["date"] }}（{{ event["weekday"] }}）
+                                    {% if event["start_time"] %}
+                                        {{ event["start_time"] }}{% if event["end_time"] %} - {{ event["end_time"] }}{% endif %}
+                                    {% else %}
+                                        終日
+                                    {% endif %}
+                                </p>
+                                {% if event["location"] %}
+                                    <p>場所：{{ event["location"] }}</p>
+                                {% endif %}
+                                {% if event["description"] %}
+                                    <p>{{ event["description"] }}</p>
+                                {% endif %}
+                            </article>
                         {% endfor %}
+                        {% if calendar_events|length > 3 %}
+                            <button
+                                id="calendar-toggle-button"
+                                class="calendar-toggle-button"
+                                type="button"
+                                data-hidden-count="{{ calendar_events|length - 3 }}"
+                            >
+                                予定をすべて表示（残り{{ calendar_events|length - 3 }}件）
+                            </button>
+                        {% endif %}
                     {% else %}
                         <p class="calendar-message">今後の予定はありません。</p>
                     {% endif %}
@@ -650,6 +727,16 @@
                 </button>
                 <p id="push-subscribe-message" class="push-message"></p>
             </section>
+            <section id="push-diagnostic-area" class="push-diagnostic-area" aria-label="Push通知診断">
+                <p class="push-title">Push通知診断</p>
+                <button id="push-diagnostic-button" class="push-diagnostic-button" type="button">
+                    このスマホで診断
+                </button>
+                <button id="push-reregister-button" class="push-reregister-button is-hidden" type="button">
+                    Push通知を再登録
+                </button>
+                <div id="push-diagnostic-result" class="push-diagnostic-result">未実行</div>
+            </section>
         </section>
 
         <section class="remove-area" aria-label="登録解除">
@@ -682,6 +769,18 @@
             window.setTimeout(function () {
                 sentToast.classList.remove("is-visible");
             }, 2600);
+        }
+
+        const calendarArea = document.getElementById("calendar-area");
+        const calendarToggleButton = document.getElementById("calendar-toggle-button");
+        if (calendarArea && calendarToggleButton) {
+            const hiddenCount = calendarToggleButton.dataset.hiddenCount || "0";
+            calendarToggleButton.addEventListener("click", function () {
+                const expanded = calendarArea.classList.toggle("is-expanded");
+                calendarToggleButton.textContent = expanded
+                    ? "予定を折りたたむ"
+                    : "予定をすべて表示（残り" + hiddenCount + "件）";
+            });
         }
 
         function urlBase64ToUint8Array(base64String) {
@@ -732,6 +831,9 @@
         const pushButton = document.getElementById("push-subscribe-button");
         const pushMessage = document.getElementById("push-subscribe-message");
         const pushArea = document.getElementById("push-area");
+        const pushDiagnosticButton = document.getElementById("push-diagnostic-button");
+        const pushDiagnosticResult = document.getElementById("push-diagnostic-result");
+        const pushReregisterButton = document.getElementById("push-reregister-button");
 
         function endpointType(endpoint) {
             if (!endpoint) {
@@ -782,6 +884,261 @@
             });
         }
 
+        function arrayBufferToBase64Url(buffer) {
+            if (!buffer) {
+                return "";
+            }
+            const bytes = new Uint8Array(buffer);
+            let binary = "";
+            bytes.forEach(function (byte) {
+                binary += String.fromCharCode(byte);
+            });
+            return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+        }
+
+        async function fingerprintBase64UrlKey(base64UrlKey) {
+            if (!base64UrlKey || !window.crypto || !window.crypto.subtle) {
+                return "";
+            }
+            const padded = base64UrlKey + "=".repeat((4 - base64UrlKey.length % 4) % 4);
+            const binary = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
+            const bytes = new Uint8Array(binary.length);
+            for (let index = 0; index < binary.length; index += 1) {
+                bytes[index] = binary.charCodeAt(index);
+            }
+            const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+            return Array.from(new Uint8Array(digest))
+                .slice(0, 8)
+                .map(function (byte) {
+                    return byte.toString(16).padStart(2, "0");
+                })
+                .join("");
+        }
+
+        async function savePushDiagnostic(diagnostic) {
+            return fetch("/user/{{ member['code'] }}/push-diagnostic", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(diagnostic)
+            });
+        }
+
+        async function trySavePushDiagnostic(diagnostic) {
+            try {
+                await savePushDiagnostic(diagnostic);
+            } catch (error) {
+                console.warn("Push diagnostic save failed", error);
+            }
+        }
+
+        function renderPushDiagnostic(rows, isOk) {
+            pushDiagnosticResult.innerHTML = "";
+            rows.forEach(function (row) {
+                const line = document.createElement("p");
+                const label = document.createElement("strong");
+                label.textContent = row[0] + ": ";
+                line.appendChild(label);
+                line.appendChild(document.createTextNode(row[1]));
+                pushDiagnosticResult.appendChild(line);
+            });
+            if (isOk !== null) {
+                pushDiagnosticResult.classList.toggle("push-diagnostic-ok", isOk);
+                pushDiagnosticResult.classList.toggle("push-diagnostic-ng", !isOk);
+            }
+        }
+
+        function updateReregisterButton(diagnostic) {
+            if (!pushReregisterButton) {
+                return;
+            }
+            const shouldShow = Boolean(diagnostic && diagnostic.reregister_available);
+            pushReregisterButton.classList.toggle("is-hidden", !shouldShow);
+        }
+
+        async function runPushDiagnostic(options) {
+            const silent = options && options.silent;
+            if (!silent) {
+                pushDiagnosticResult.textContent = "診断中です。";
+                pushDiagnosticResult.classList.remove("push-diagnostic-ok", "push-diagnostic-ng");
+            }
+
+            const permission = "Notification" in window ? Notification.permission : "unsupported";
+            const diagnostic = {
+                push_permission: permission,
+                push_subscription_present: false,
+                endpoint: "",
+                endpoint_type: "other",
+                vapid_public_fingerprint: "",
+                vapid_key_match: null,
+                diagnostic_error: "",
+                reregister_available: false
+            };
+
+            try {
+                diagnostic.server_public_fingerprint = await fingerprintBase64UrlKey(vapidPublicKey);
+
+                if (!vapidPublicKey) {
+                    diagnostic.diagnostic_error = "通知用の公開鍵が未設定です。";
+                    await trySavePushDiagnostic(diagnostic);
+                    updateReregisterButton(diagnostic);
+                    if (!silent) {
+                        renderPushDiagnostic([
+                            ["通知許可", permission],
+                            ["Push subscription", "なし"],
+                            ["endpoint種別", "other"],
+                            ["VAPID鍵一致", "no"],
+                            ["判定", diagnostic.diagnostic_error]
+                        ], false);
+                    }
+                    return diagnostic;
+                }
+
+                if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+                    diagnostic.diagnostic_error = "この端末またはブラウザはPush通知に対応していません。";
+                    await trySavePushDiagnostic(diagnostic);
+                    updateReregisterButton(diagnostic);
+                    if (!silent) {
+                        renderPushDiagnostic([
+                            ["通知許可", permission],
+                            ["Push subscription", "なし"],
+                            ["endpoint種別", "other"],
+                            ["VAPID鍵一致", "no"],
+                            ["判定", diagnostic.diagnostic_error]
+                        ], false);
+                    }
+                    return diagnostic;
+                }
+
+                const registration = await ensureServiceWorkerRegistration({ silent: true });
+                const subscription = await registration.pushManager.getSubscription();
+                if (!subscription) {
+                    diagnostic.diagnostic_error = "この端末にはPush購読がありません。";
+                    diagnostic.reregister_available = permission !== "denied";
+                    await trySavePushDiagnostic(diagnostic);
+                    updateReregisterButton(diagnostic);
+                    if (!silent) {
+                        renderPushDiagnostic([
+                            ["通知許可", permission],
+                            ["Push subscription", "なし"],
+                            ["endpoint種別", "other"],
+                            ["端末VAPID fingerprint", "未取得"],
+                            ["現在のサーバ公開鍵 fingerprint", diagnostic.server_public_fingerprint || "未取得"],
+                            ["VAPID鍵一致", "no"],
+                            ["判定", "Push通知の再登録が必要です。"]
+                        ], false);
+                    }
+                    return diagnostic;
+                }
+
+                const subscriptionKey = arrayBufferToBase64Url(subscription.options.applicationServerKey);
+                diagnostic.push_subscription_present = true;
+                diagnostic.endpoint = subscription.endpoint || "";
+                diagnostic.endpoint_type = endpointType(subscription.endpoint);
+                diagnostic.vapid_public_fingerprint = await fingerprintBase64UrlKey(subscriptionKey);
+                diagnostic.vapid_key_match = Boolean(subscriptionKey && vapidPublicKey && subscriptionKey === vapidPublicKey);
+                diagnostic.reregister_available = permission !== "denied" && !diagnostic.vapid_key_match;
+                await trySavePushDiagnostic(diagnostic);
+                updateReregisterButton(diagnostic);
+
+                const normal = permission === "granted" && diagnostic.vapid_key_match;
+                let judgment = "端末側のPush購読は正常です。";
+                if (permission === "denied") {
+                    judgment = "通知が拒否されています。OSまたはブラウザの通知許可を確認してください。";
+                } else if (!diagnostic.vapid_key_match) {
+                    judgment = "端末が古いPush登録を使用している可能性があります。再登録が必要です。";
+                }
+
+                if (!silent) {
+                    renderPushDiagnostic([
+                        ["通知許可", permission],
+                        ["Push subscription", "あり"],
+                        ["endpoint種別", diagnostic.endpoint_type],
+                        ["端末VAPID fingerprint", diagnostic.vapid_public_fingerprint || "未取得"],
+                        ["現在のサーバ公開鍵 fingerprint", diagnostic.server_public_fingerprint || "未取得"],
+                        ["VAPID鍵一致", diagnostic.vapid_key_match ? "yes" : "no"],
+                        ["判定", judgment]
+                    ], normal);
+                }
+                return diagnostic;
+            } catch (error) {
+                diagnostic.diagnostic_error = String(error);
+                await trySavePushDiagnostic(diagnostic);
+                updateReregisterButton(diagnostic);
+                if (!silent) {
+                    renderPushDiagnostic([
+                        ["通知許可", permission],
+                        ["Push subscription", "確認失敗"],
+                        ["endpoint種別", "other"],
+                        ["VAPID鍵一致", "no"],
+                        ["判定", "Push通知診断を実行できませんでした。"]
+                    ], false);
+                }
+                return diagnostic;
+            }
+        }
+
+        async function reregisterPushSubscription() {
+            if (!vapidPublicKey) {
+                renderPushDiagnostic([
+                    ["判定", "通知用の公開鍵が未設定です。管理者に確認してください。"]
+                ], false);
+                return;
+            }
+            if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+                renderPushDiagnostic([
+                    ["判定", "この端末またはブラウザはPush通知に対応していません。"]
+                ], false);
+                return;
+            }
+
+            pushReregisterButton.disabled = true;
+            pushDiagnosticResult.textContent = "Push通知を再登録しています。";
+            pushDiagnosticResult.classList.remove("push-diagnostic-ok", "push-diagnostic-ng");
+
+            try {
+                const registration = await ensureServiceWorkerRegistration({ silent: true });
+                const permission = await Notification.requestPermission();
+                if (permission !== "granted") {
+                    renderPushDiagnostic([
+                        ["通知許可", permission],
+                        ["判定", "通知が許可されませんでした。OSまたはブラウザの通知許可を確認してください。"]
+                    ], false);
+                    await runPushDiagnostic({ silent: true });
+                    return;
+                }
+
+                const existingSubscription = await registration.pushManager.getSubscription();
+                if (existingSubscription) {
+                    await existingSubscription.unsubscribe();
+                }
+
+                const newSubscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey)
+                });
+                const response = await savePushSubscription(newSubscription);
+                if (!response.ok) {
+                    throw new Error("サーバへのPush登録保存に失敗しました。");
+                }
+
+                await runPushDiagnostic({ silent: false });
+                pushMessage.textContent = "Push通知を再登録しました。管理者からテスト通知を送信してください。";
+                pushButton.disabled = true;
+                window.setTimeout(function () {
+                    pushArea.classList.add("is-hidden");
+                }, 900);
+            } catch (error) {
+                renderPushDiagnostic([
+                    ["判定", "Push通知の再登録に失敗しました。"],
+                    ["エラー", String(error)]
+                ], false);
+            } finally {
+                pushReregisterButton.disabled = false;
+            }
+        }
+
         async function hidePushAreaIfSubscribed() {
             if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
                 return;
@@ -793,6 +1150,7 @@
                 if (subscription) {
                     const response = await savePushSubscription(subscription);
                     if (response.ok) {
+                        await runPushDiagnostic({ silent: true });
                         const version = await getServiceWorkerVersion(registration);
                         pushMessage.textContent = "通知登録済み / " + endpointType(subscription.endpoint) + " / SW " + version;
                         window.setTimeout(function () {
@@ -842,6 +1200,7 @@
             const response = await savePushSubscription(subscription);
 
             if (response.ok) {
+                await runPushDiagnostic({ silent: true });
                 pushMessage.textContent =
                     "通知登録完了 / endpoint種別: " +
                     endpointType(subscription.endpoint) +
@@ -855,6 +1214,14 @@
             } else {
                 pushMessage.textContent = "通知登録に失敗しました。";
             }
+        });
+
+        pushDiagnosticButton.addEventListener("click", function () {
+            runPushDiagnostic({ silent: false });
+        });
+
+        pushReregisterButton.addEventListener("click", function () {
+            reregisterPushSubscription();
         });
     </script>
 </body>

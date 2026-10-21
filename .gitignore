@@ -10,3 +10,8 @@ cloudflared.log
 static/uploads/
 auto_exports/
 data/
+*.db
+*.db-wal
+*.db-shm
+*.zip
+vapid_*diagnostics*/

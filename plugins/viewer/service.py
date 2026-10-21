@@ -120,9 +120,9 @@ def save_upload(filename, content_type, content):
 
 
 def delete_file(file_path):
-    if not file_path.startswith("/static/uploads/viewer/"):
+    path = local_file_path(file_path)
+    if path is None:
         return
-    path = Path(file_path.lstrip("/"))
     try:
         if path.exists() and path.is_file():
             path.unlink()
@@ -133,7 +133,10 @@ def delete_file(file_path):
 def local_file_path(file_path):
     if not file_path.startswith("/static/uploads/viewer/"):
         return None
-    path = Path(file_path.lstrip("/"))
+    name = file_path.removeprefix("/static/uploads/viewer/")
+    if not name or Path(name).name != name or "\\" in name:
+        return None
+    path = UPLOAD_DIR / name
     try:
         resolved = path.resolve()
         upload_root = UPLOAD_DIR.resolve()

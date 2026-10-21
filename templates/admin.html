@@ -175,6 +175,52 @@
             margin: 8px 0 0;
             padding-left: 20px;
         }
+        .vapid-diagnostics {
+            margin-bottom: 20px;
+            padding: 14px;
+            border: 1px solid #ccd5df;
+            border-radius: 8px;
+            background: #ffffff;
+        }
+        .vapid-diagnostics table {
+            margin-top: 10px;
+        }
+        .vapid-diagnostics code {
+            word-break: break-all;
+        }
+        .diagnostic-value {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            word-break: break-all;
+        }
+        .diagnostic-ok {
+            color: #1b5e20;
+            font-weight: bold;
+        }
+        .diagnostic-ng {
+            color: #b71c1c;
+            font-weight: bold;
+        }
+        .diagnostic-warning {
+            margin-top: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            background: #ffebee;
+            color: #b71c1c;
+            font-weight: bold;
+        }
+        .diagnostic-note {
+            color: #56616d;
+            font-size: 0.9rem;
+            margin: 8px 0 0;
+        }
+        .subscription-diagnostic-cell {
+            min-width: 150px;
+            line-height: 1.5;
+        }
+        .subscription-diagnostic-meta {
+            color: #56616d;
+            font-size: 0.85rem;
+        }
         .public-url-box {
             display: grid;
             grid-template-columns: minmax(0, 1fr) auto;
@@ -852,7 +898,7 @@
             </label>
             <label>
                 本文<br>
-                <textarea id="push-body-input" name="body" required {% if disaster_mode != "disaster" %}disabled{% endif %}>安否確認をお願いします。</textarea>
+                <textarea id="push-body-input" name="body" required {% if disaster_mode != "disaster" %}disabled{% endif %}>通知のテストです。</textarea>
             </label>
             <div class="push-target-actions">
                 <label class="push-target-card">
@@ -887,6 +933,17 @@
     </div>
 
     {% if push_test_mode_enabled %}
+        <div class="vapid-diagnostics">
+            <h2>VAPID鍵診断</h2>
+            <button class="test-button" type="button" id="vapid-diagnostic-button">VAPID鍵診断を実行</button>
+            <div id="vapid-diagnostic-result" class="diagnostic">未実行</div>
+
+            <h3>管理画面端末のSubscription診断</h3>
+            <p class="diagnostic-note">ここで確認できるのは、管理画面を開いている端末の状態です。職員スマホの状態は各ユーザー画面で診断後、この一覧に表示します。</p>
+            <button class="test-button" type="button" id="subscription-diagnostic-button">管理画面端末で確認</button>
+            <div id="subscription-diagnostic-result" class="diagnostic"></div>
+        </div>
+
         <div class="push-test-box">
             <h2>Push送信テスト</h2>
             {% if push_subscriptions %}
@@ -895,6 +952,8 @@
                         <th>名前</th>
                         <th>職種</th>
                         <th>endpoint種別</th>
+                        <th>端末診断</th>
+                        <th>端末VAPID fingerprint</th>
                         <th>created_at</th>
                         <th>endpoint</th>
                         <th>テスト</th>
@@ -904,6 +963,29 @@
                             <td>{{ subscription["name"] }}</td>
                             <td>{{ subscription["group_name"] or "" }}</td>
                             <td>{{ subscription["endpoint_type"] }}</td>
+                            <td class="subscription-diagnostic-cell">
+                                {% if subscription["client_diagnosed_at"] %}
+                                    {% if subscription["client_push_subscription_present"] == 1 and subscription["client_vapid_key_match"] == 1 %}
+                                        <span class="diagnostic-ok">一致</span>
+                                    {% elif subscription["client_push_subscription_present"] == 0 %}
+                                        <span class="diagnostic-ng">購読なし</span>
+                                    {% elif subscription["client_vapid_key_match"] == 0 %}
+                                        <span class="diagnostic-ng">不一致</span>
+                                    {% else %}
+                                        <span>未判定</span>
+                                    {% endif %}
+                                    <div class="subscription-diagnostic-meta">
+                                        許可: {{ subscription["client_push_permission"] or "不明" }}<br>
+                                        診断: {{ subscription["client_diagnosed_at"] }}
+                                    </div>
+                                    {% if subscription["client_diagnostic_error"] %}
+                                        <div class="error">{{ subscription["client_diagnostic_error"] }}</div>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="subscription-diagnostic-meta">未実施</span>
+                                {% endif %}
+                            </td>
+                            <td class="diagnostic-value">{{ subscription["client_vapid_public_fingerprint"] or "未取得" }}</td>
                             <td>{{ subscription["created_at"] or "" }}</td>
                             <td class="endpoint-text">{{ subscription["endpoint"] }}</td>
                         <td>
@@ -1104,6 +1186,186 @@
                     document.execCommand("copy");
                     document.body.removeChild(textarea);
                     copyPublicUrlMessage.textContent = "コピーしました。";
+                }
+            });
+        }
+
+        let vapidPublicKey = "";
+        let serverPublicFingerprint = "";
+        let serverVapidPairMatch = false;
+        const vapidDiagnosticButton = document.getElementById("vapid-diagnostic-button");
+        const vapidDiagnosticResult = document.getElementById("vapid-diagnostic-result");
+        const subscriptionDiagnosticButton = document.getElementById("subscription-diagnostic-button");
+        const subscriptionDiagnosticResult = document.getElementById("subscription-diagnostic-result");
+
+        function endpointType(endpoint) {
+            if (!endpoint) {
+                return "other";
+            }
+            if (endpoint.indexOf("web.push.apple.com") !== -1) {
+                return "apple";
+            }
+            if (endpoint.indexOf("fcm.googleapis.com") !== -1 || endpoint.indexOf("firebaseinstallations.googleapis.com") !== -1) {
+                return "fcm";
+            }
+            return "other";
+        }
+
+        function arrayBufferToBase64Url(buffer) {
+            if (!buffer) {
+                return "";
+            }
+            const bytes = new Uint8Array(buffer);
+            let binary = "";
+            bytes.forEach(function (byte) {
+                binary += String.fromCharCode(byte);
+            });
+            return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+        }
+
+        async function fingerprintBase64UrlKey(base64UrlKey) {
+            if (!base64UrlKey || !window.crypto || !window.crypto.subtle) {
+                return "";
+            }
+            const padded = base64UrlKey + "=".repeat((4 - base64UrlKey.length % 4) % 4);
+            const binary = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
+            const bytes = new Uint8Array(binary.length);
+            for (let index = 0; index < binary.length; index += 1) {
+                bytes[index] = binary.charCodeAt(index);
+            }
+            const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+            return Array.from(new Uint8Array(digest))
+                .slice(0, 8)
+                .map(function (byte) {
+                    return byte.toString(16).padStart(2, "0");
+                })
+                .join("");
+        }
+
+        function renderSubscriptionDiagnostic(rows, warningText) {
+            if (!subscriptionDiagnosticResult) {
+                return;
+            }
+            const htmlRows = rows.map(function (row) {
+                return "<p><strong>" + row[0] + ":</strong> " + row[1] + "</p>";
+            }).join("");
+            subscriptionDiagnosticResult.innerHTML = htmlRows + (warningText ? "<div class=\"diagnostic-warning\">" + warningText + "</div>" : "");
+        }
+
+        function yesNo(value) {
+            return value ? "yes" : "no";
+        }
+
+        function resultClass(value) {
+            return value ? "diagnostic-ok" : "diagnostic-ng";
+        }
+
+        function renderVapidDiagnostic(data) {
+            if (!vapidDiagnosticResult) {
+                return;
+            }
+            if (data.error) {
+                vapidDiagnosticResult.innerHTML =
+                    "<div class=\"diagnostic-warning\">" + data.error + "</div>" +
+                    (data.detail ? "<p>" + data.detail + "</p>" : "");
+                return;
+            }
+            vapidPublicKey = data.public_key || "";
+            serverPublicFingerprint = data.public_fingerprint || "";
+            serverVapidPairMatch = Boolean(data.pair_match);
+            const pairMessage = serverVapidPairMatch
+                ? "<p class=\"diagnostic-ok\">判定：サーバ側の公開鍵と秘密鍵は同一ペアです。</p>"
+                : "<div class=\"diagnostic-warning\">VAPID公開鍵と秘密鍵が同一ペアではありません。<br>端末の再登録を行う前にサーバ設定を修正してください。</div><p class=\"diagnostic-ng\">判定：サーバ側VAPID鍵設定不整合</p>";
+            vapidDiagnosticResult.innerHTML =
+                "<table>" +
+                "<tr><th>項目</th><th>結果</th></tr>" +
+                "<tr><td>Public key loaded</td><td class=\"" + resultClass(data.public_key_loaded) + "\">" + yesNo(data.public_key_loaded) + "</td></tr>" +
+                "<tr><td>Private key loaded</td><td class=\"" + resultClass(data.private_key_loaded) + "\">" + yesNo(data.private_key_loaded) + "</td></tr>" +
+                "<tr><td>Public/private pair match</td><td class=\"" + resultClass(data.pair_match) + "\">" + yesNo(data.pair_match) + "</td></tr>" +
+                "<tr><td>Public key fingerprint</td><td class=\"diagnostic-value\">" + (data.public_fingerprint || "未取得") + "</td></tr>" +
+                "<tr><td>Private-derived public fingerprint</td><td class=\"diagnostic-value\">" + (data.derived_fingerprint || "未取得") + "</td></tr>" +
+                "<tr><td>configured public key</td><td class=\"diagnostic-value\">" + (data.public_key || "未設定") + "</td></tr>" +
+                "<tr><td>private key derived public key</td><td class=\"diagnostic-value\">" + (data.derived_public_key || "未取得") + "</td></tr>" +
+                "</table>" +
+                (data.public_error ? "<div class=\"error\">公開鍵エラー：" + data.public_error + "</div>" : "") +
+                (data.private_error ? "<div class=\"error\">秘密鍵読み込みエラー：" + data.private_error + "</div>" : "") +
+                pairMessage;
+        }
+
+        if (vapidDiagnosticButton && vapidDiagnosticResult) {
+            vapidDiagnosticButton.addEventListener("click", async function () {
+                vapidDiagnosticResult.textContent = "診断中";
+                try {
+                    const response = await fetch("/admin/push/vapid-diagnostics", {
+                        headers: {"Accept": "application/json"}
+                    });
+                    const data = await response.json();
+                    renderVapidDiagnostic(data);
+                } catch (error) {
+                    vapidDiagnosticResult.innerHTML =
+                        "<div class=\"diagnostic-warning\">VAPID診断を実行できませんでした</div><p>" +
+                        String(error) +
+                        "</p>";
+                }
+            });
+        }
+
+        if (subscriptionDiagnosticButton && subscriptionDiagnosticResult) {
+            subscriptionDiagnosticButton.addEventListener("click", async function () {
+                if (!vapidPublicKey) {
+                    renderSubscriptionDiagnostic([
+                        ["Push subscription", "未確認"],
+                        ["endpoint種別", "other"],
+                        ["Subscription key match", "no"]
+                    ], "先にVAPID鍵診断を実行してください。");
+                    return;
+                }
+                if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+                    renderSubscriptionDiagnostic([
+                        ["Push subscription", "なし"],
+                        ["endpoint種別", "other"],
+                        ["Subscription key match", "no"]
+                    ], "この端末またはブラウザはPush通知に対応していません。");
+                    return;
+                }
+
+                try {
+                    const registration = await navigator.serviceWorker.ready;
+                    const subscription = await registration.pushManager.getSubscription();
+                    if (!subscription) {
+                        renderSubscriptionDiagnostic([
+                            ["Push subscription", "なし"],
+                            ["endpoint種別", "other"],
+                            ["Subscription VAPID key fingerprint", "未取得"],
+                            ["Current server public key fingerprint", serverPublicFingerprint || "未取得"],
+                            ["Subscription key match", "no"]
+                        ], "");
+                        return;
+                    }
+
+                    const subscriptionKey = arrayBufferToBase64Url(subscription.options.applicationServerKey);
+                    const subscriptionFingerprint = await fingerprintBase64UrlKey(subscriptionKey);
+                    const keyMatch = Boolean(subscriptionKey && vapidPublicKey && subscriptionKey === vapidPublicKey);
+                    let warningText = "";
+                    if (serverVapidPairMatch && !keyMatch) {
+                        warningText = "端末が現在のVAPID公開鍵とは異なる鍵で購読しています。unsubscribe + subscribeし直す必要があります。";
+                    } else if (serverVapidPairMatch && keyMatch) {
+                        warningText = "サーバ側鍵と端末側購読鍵は一致しています。この状態でFCM 403が続く場合は、実際にwebpush()へ渡している秘密鍵、VAPID claims、設定ロード経路を再調査してください。";
+                    }
+                    renderSubscriptionDiagnostic([
+                        ["Push subscription", "あり"],
+                        ["endpoint種別", endpointType(subscription.endpoint)],
+                        ["Subscription VAPID key fingerprint", subscriptionFingerprint || "未取得"],
+                        ["Current server public key fingerprint", serverPublicFingerprint || "未取得"],
+                        ["Subscription key match", keyMatch ? "yes" : "no"],
+                        ["判定", keyMatch ? "端末購読鍵は現在のサーバ公開鍵と一致" : "端末が旧VAPID鍵で購読している可能性あり"]
+                    ], warningText);
+                } catch (error) {
+                    renderSubscriptionDiagnostic([
+                        ["Push subscription", "確認失敗"],
+                        ["endpoint種別", "other"],
+                        ["Subscription key match", "no"]
+                    ], String(error));
                 }
             });
         }
