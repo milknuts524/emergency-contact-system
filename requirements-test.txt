@@ -1,0 +1,3 @@
+-r requirements.txt
+# Test client dependency; install in a test environment, not the running service.
+httpx2==2.16.0

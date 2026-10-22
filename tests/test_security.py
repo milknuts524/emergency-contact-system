@@ -27,7 +27,7 @@ class SecurityTest(unittest.TestCase):
                     conn.execute('DELETE FROM viewer_items')
                     conn.execute("INSERT OR REPLACE INTO members(name, code, active) VALUES ('test', 'security-test', 1)")
                     item = conn.execute("INSERT INTO viewer_items(title, file_path, file_type, is_active) VALUES ('test', '/static/uploads/viewer/private.pdf', 'pdf', 1)").lastrowid
-                with TestClient(main.app) as client:
+                with TestClient(main.app, base_url='https://testserver') as client:
                     self.assertEqual(client.get('/static/public.txt').status_code, 200)
                     self.assertEqual(client.get('/static/uploads/viewer/private.pdf').status_code, 404)
                     self.assertEqual(client.get(f'/viewer/{item}/file').status_code, 404)

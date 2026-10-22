@@ -17,3 +17,11 @@ vapid_private_key.pem
 .codex/
 *.zip
 vapid_*diagnostics*/
+secrets/
+*.key
+*.enc
+*.db-wal
+*.db-shm
+*.db-journal
+*.db.bak
+emergency-contact-https-encrypted-db-*/

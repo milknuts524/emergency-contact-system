@@ -1,6 +1,10 @@
 # Emergency Contact System
 
-記載上の最新バージョン: **Ver.1.7**。2026-10-22時点の保存版は、Ver.1.7以降の未リリース変更を含みます。正式な次期バージョン番号は未設定です。[更新履歴](CHANGELOG.md)を参照してください。
+現在のバージョン: **Ver.1.8.0**（2026-10-22）。HTTPS運用の強化、SQLCipherによる保存DB暗号化、移行・復旧処理の整合性修正を含みます。バージョン番号は `VERSION`、詳細は[更新履歴](CHANGELOG.md)を参照してください。
+
+**Ver.1.8.0の起動手順:** 保存DBをSQLCipherで暗号化する構成に変更しました。未移行の既存環境では、アプリを停止してから移行が必要です。従来の起動説明よりも先に[HTTPS・DB暗号化の導入手順](SECURE_DEPLOYMENT.md)を確認してください。公開先はHTTPS、アプリの待ち受けは同じPC内に限定します。
+
+暗号化・復旧済みの環境への更新は[整合性修正手順](STORAGE_FIX_UPDATE.md)を参照。既存DBを再移行したり、鍵を作り直したりしません。
 
 Emergency Contact System は、利用者の安否・状態報告と、管理者による状況集約を目的とした軽量なWebアプリケーションです。
 
@@ -73,7 +77,7 @@ REGISTRATION_PASSWORD=ChangeMe
 
 ```bash
 source venv/bin/activate
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+python scripts/run_server.py
 ```
 
 ブラウザで以下へアクセスします。
@@ -87,9 +91,9 @@ http://127.0.0.1:8000
 `start.command` をダブルクリックすると、以下を自動実行します。
 
 - `.env` の読み込み
-- 既存の8000番ポート利用プロセスの停止
-- FastAPIサーバ起動
-- ローカル画面をブラウザで表示
+- 暗号化DBと鍵の事前確認
+- 同じPC内だけで待ち受けるFastAPIサーバ起動
+- 公開HTTPS URLをブラウザで表示
 - 公開URLモードに応じたCloudflare Tunnel起動
 
 `start.command` は実行権限が必要です。もし起動できない場合は以下を実行してください。
@@ -120,25 +124,29 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-6. 起動
+6. [導入手順](SECURE_DEPLOYMENT.md)に従って既存DBを暗号化し、鍵を別保管
+
+7. 起動
 
 `start.bat` をダブルクリックします。
 
 または、手動で起動します。
 
 ```bat
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+python scripts/run_server.py
 ```
 
-`start.bat` は `.env` の `PUBLIC_URL_MODE` を読み込み、`dynamic` の場合は `cloudflared tunnel --url http://localhost:8000`、`fixed` の場合は `cloudflared tunnel run emergency` を起動します。
+`start.bat` は `.env` の `PUBLIC_URL_MODE` を読み込み、`dynamic` の場合は `cloudflared tunnel --url http://127.0.0.1:8000`、`fixed` の場合は `cloudflared tunnel run emergency` を起動します。
 
-Windowsで `cloudflared.exe` が見つからない場合は、Cloudflare Tunnelをスキップしてローカル起動のみ行います。外部公開とPush通知を使う場合は、別途 `cloudflared` を導入してください。
+Windowsで `cloudflared.exe` が見つからない場合は、起動を停止します。先に `cloudflared` を導入してください。`scripts/run_server.py` は保守用にアプリだけを起動します。
 
 ---
 
 ### Dockerでの起動
 
 Docker Desktop をインストール済みであれば、macOS / Windows / Linux で同じ手順で起動できます。
+
+先に[導入手順](SECURE_DEPLOYMENT.md)に従って `data/emergency.encrypted.db` と `secrets/database.key` を準備してください。
 
 ```bash
 docker compose up -d --build
@@ -164,7 +172,8 @@ docker compose logs -f
 
 Docker環境では、SQLite DBと管理画面から保存される設定は `./data/` に保存されます。
 
-- SQLite DB: `./data/emergency.db`
+- 暗号化DB: `./data/emergency.encrypted.db`
+- DB暗号鍵: `./secrets/database.key`（コンテナへ読取専用でマウント）
 - Docker用設定ファイル: `./data/.env`
 - 現在の一時公開URL: `./data/current_url.txt`
 - 自動CSV書き出し: `./data/auto_exports/`
@@ -844,7 +853,7 @@ ENABLED_PLUGINS=calendar,survey,viewer,phonebook,bed_status
 簡易更新の使い方:
 
 1. スマートフォンで `https://emergency.tohyama.cc/bed-status/update` を開きます。
-2. あいことばを入力します。現在の運用では職員登録と同じ `6171` です。
+2. あいことばを入力します。管理者が設定した職員登録用のあいことばを使用します。実際の値は公開文書に記載しないでください。
 3. 更新者に「院長」「看護部長」「地域連携室」などを入力します。
 4. 必要に応じて外部向け補足を編集します。
 5. `○ 空床あり`、`△ 要問い合わせ`、`× 満床` のいずれかを押します。

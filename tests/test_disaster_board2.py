@@ -8,7 +8,7 @@ from plugins.disaster_board2 import service
 class DisasterBoard2Test(unittest.TestCase):
     def setUp(self):
         main.ENABLED_PLUGINS = ['disaster_board2']
-        self.client = TestClient(main.app)
+        self.client = TestClient(main.app, base_url='https://testserver')
         self.client.cookies.set('member_code', 'aaa')
         main.app.dependency_overrides[main.check_admin] = lambda: True
         with connection() as conn:

@@ -13,7 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
-import sqlite3
+from database_security import sqlite as sqlite3, connect_database, encryption_enabled, encrypt_export
 import secrets
 from datetime import datetime
 from html import escape
@@ -54,8 +54,11 @@ class PublicStaticFiles(StaticFiles):
         return await super().get_response(path, scope)
 
 
-app = FastAPI()
+APP_VERSION = Path(__file__).with_name("VERSION").read_text(encoding="ascii").strip()
+app = FastAPI(version=APP_VERSION)
 app.mount("/static", PublicStaticFiles(directory="static"), name="static")
+from transport_security import install_transport_security
+install_transport_security(app)
 
 
 @app.middleware("http")
@@ -64,6 +67,8 @@ async def privacy_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    if request.url.scheme == "https":
+        response.headers["Strict-Transport-Security"] = "max-age=2592000"
     if not request.url.path.startswith("/static/"):
         response.headers["Cache-Control"] = "no-store"
     return response
@@ -342,7 +347,12 @@ def init_db():
     if db_path.parent != Path("."):
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect(str(db_path))
+    conn = connect_database(db_path, must_exist=True)
+    if os.getenv("DB_ALLOW_INITIALIZE") != "1" and not conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='members'"
+    ).fetchone():
+        conn.close()
+        raise RuntimeError("DB_PATH is not an initialized emergency-contact database. Restore the correct database; no tables were created.")
     cur = conn.cursor()
 
     cur.execute("""
@@ -538,8 +548,7 @@ def get_conn():
     if db_path.parent != Path("."):
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
+    conn = connect_database(db_path, must_exist=True)
     return conn
 
 
@@ -1198,23 +1207,26 @@ def run_auto_csv_export():
             except ValueError:
                 pass
 
-        AUTO_EXPORT_DIR.mkdir(exist_ok=True)
+        AUTO_EXPORT_DIR.mkdir(parents=True, exist_ok=True)
         timestamp = now.strftime("%Y%m%d_%H%M%S")
 
         members_path = AUTO_EXPORT_DIR / f"members_{timestamp}.csv"
         responses_path = AUTO_EXPORT_DIR / f"responses_{timestamp}.csv"
 
-        members_path.write_text(
-            csv_text(MEMBERS_CSV_FIELDNAMES, build_members_csv_rows(conn)),
-            encoding="utf-8",
+        exports = (
+            (members_path, csv_text(MEMBERS_CSV_FIELDNAMES, build_members_csv_rows(conn))),
+            (responses_path, csv_text(RESPONSES_CSV_FIELDNAMES, build_responses_csv_rows(conn))),
         )
-        responses_path.write_text(
-            csv_text(RESPONSES_CSV_FIELDNAMES, build_responses_csv_rows(conn)),
-            encoding="utf-8",
-        )
+        for path, content in exports:
+            data = content.encode("utf-8")
+            if encryption_enabled():
+                path = path.with_suffix(".csv.enc")
+                data = encrypt_export(data)
+            with path.open("xb") as output:
+                output.write(data)
         set_setting(conn, "auto_csv_export_last_at", now.isoformat(timespec="seconds"))
         conn.commit()
-        print(f"[auto-csv] exported {members_path} and {responses_path}")
+        print("[auto-csv] exported " + ("encrypted CSV files" if encryption_enabled() else "CSV files"))
         return True
     finally:
         conn.close()

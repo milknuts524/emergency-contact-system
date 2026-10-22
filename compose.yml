@@ -6,10 +6,16 @@ services:
     container_name: emergency-contact-system
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       TZ: Asia/Tokyo
-      DB_PATH: /app/data/emergency.db
+      DB_PATH: /app/data/emergency.encrypted.db
+      DB_ENCRYPTION: sqlcipher
+      DB_KEY_FILE: /run/secrets/database.key
+      FIXED_PUBLIC_URL: ${FIXED_PUBLIC_URL:-}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,*.trycloudflare.com,emergency.tohyama.cc}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.30.80.1}
+      LOCAL_HTTP_PEERS: ${LOCAL_HTTP_PEERS:-172.30.80.1}
       ENV_FILE: /app/data/.env
       CURRENT_URL_FILE: /app/data/current_url.txt
       AUTO_EXPORT_DIR: /app/data/auto_exports
@@ -20,3 +26,40 @@ services:
       - ./plugins:/app/plugins
       - ./static:/app/static
       - ./templates:/app/templates
+      - type: bind
+        source: ./secrets
+        target: /run/secrets
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - tunnel_origin
+    healthcheck:
+      test: [CMD, python, scripts/secure_storage.py, check]
+      interval: 60s
+      timeout: 15s
+      start_period: 30s
+      retries: 3
+
+  storage-tools:
+    profiles: [maintenance]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: [python, scripts/secure_storage.py]
+    command: [verify]
+    environment:
+      ENV_FILE: /app/data/.env
+      DB_PATH: /app/data/emergency.encrypted.db
+      DB_KEY_FILE: /run/secrets/database.key
+    volumes:
+      - ./data:/app/data
+      - ./secrets:/run/secrets
+    network_mode: none
+
+networks:
+  tunnel_origin:
+    ipam:
+      config:
+        - subnet: 172.30.80.0/24
+          gateway: 172.30.80.1

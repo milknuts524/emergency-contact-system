@@ -15,3 +15,9 @@ data/
 *.db-shm
 *.zip
 vapid_*diagnostics*/
+secrets/
+*.key
+*.enc
+*.db-journal
+*.db.bak
+emergency-contact-https-encrypted-db-*/
